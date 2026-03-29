@@ -1,0 +1,76 @@
+
+> web@0.1.0 build /Users/demss/Desktop/harmony/apps/web
+> next build
+
+⚠ Warning: Next.js inferred your workspace root, but it may not be correct.
+ We detected multiple lockfiles and selected the directory of /Users/demss/package-lock.json as the root directory.
+ To silence this warning, set `turbopack.root` in your Next.js config, or consider removing one of the lockfiles if it's not needed.
+   See https://nextjs.org/docs/app/api-reference/config/next-config-js/turbopack#root-directory for more information.
+ Detected additional lockfiles: 
+   * /Users/demss/Desktop/harmony/apps/web/pnpm-lock.yaml
+   * /Users/demss/Desktop/harmony/pnpm-lock.yaml
+
+▲ Next.js 16.1.6 (Turbopack)
+- Environments: .env
+
+⚠ The "middleware" file convention is deprecated. Please use "proxy" instead. Learn more: https://nextjs.org/docs/messages/middleware-to-proxy
+  Creating an optimized production build ...
+✓ Compiled successfully in 18.9s
+  Running TypeScript ...
+  Collecting page data using 7 workers ...
+  Generating static pages using 7 workers (0/3) ...
+✓ Generating static pages using 7 workers (3/3) in 252.2ms
+  Finalizing page optimization ...
+
+Route (app)
+┌ ○ /_not-found
+├ ƒ /[locale]
+├ ƒ /[locale]/dashboard
+├ ƒ /[locale]/dashboard/advances
+├ ƒ /[locale]/dashboard/attendance
+├ ƒ /[locale]/dashboard/billing
+├ ƒ /[locale]/dashboard/directory
+├ ƒ /[locale]/dashboard/employees
+├ ƒ /[locale]/dashboard/employees/[id]
+├ ƒ /[locale]/dashboard/employees/[id]/edit
+├ ƒ /[locale]/dashboard/employees/[id]/onboarding
+├ ƒ /[locale]/dashboard/employees/create
+├ ƒ /[locale]/dashboard/employees/import
+├ ƒ /[locale]/dashboard/evaluations
+├ ƒ /[locale]/dashboard/expenses
+├ ƒ /[locale]/dashboard/grades
+├ ƒ /[locale]/dashboard/leaves
+├ ƒ /[locale]/dashboard/leaves/calendar
+├ ƒ /[locale]/dashboard/monitoring
+├ ƒ /[locale]/dashboard/notifications
+├ ƒ /[locale]/dashboard/onboarding
+├ ƒ /[locale]/dashboard/organization
+├ ƒ /[locale]/dashboard/overtime
+├ ƒ /[locale]/dashboard/payroll
+├ ƒ /[locale]/dashboard/payroll/[id]
+├ ƒ /[locale]/dashboard/payroll/dgi
+├ ƒ /[locale]/dashboard/reports
+├ ƒ /[locale]/dashboard/settings
+├ ƒ /[locale]/dashboard/signatures
+├ ƒ /[locale]/dashboard/signatures/[id]
+├ ƒ /[locale]/dashboard/tenants
+├ ƒ /[locale]/dashboard/users
+├ ƒ /[locale]/employee
+├ ƒ /[locale]/employee/attestations
+├ ƒ /[locale]/employee/documents
+├ ƒ /[locale]/employee/leaves
+├ ƒ /[locale]/employee/notifications
+├ ƒ /[locale]/employee/payslips
+├ ƒ /[locale]/employee/profile
+├ ƒ /[locale]/employee/signatures
+├ ƒ /[locale]/employee/signatures/[id]
+├ ƒ /[locale]/forgot-password
+├ ƒ /[locale]/login
+└ ƒ /[locale]/reset-password
+
+
+ƒ Proxy (Middleware)
+
+○  (Static)   prerendered as static content
+ƒ  (Dynamic)  server-rendered on demand
+

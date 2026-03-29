@@ -1,0 +1,24 @@
+D31. Déclaration annuelle des salaires (DAS),Unnamed: 1,Unnamed: 2,Unnamed: 3,Unnamed: 4,Unnamed: 5,Unnamed: 6,Unnamed: 7,Unnamed: 8,Unnamed: 9,Unnamed: 10,Unnamed: 11
+,,,,,,,,,,,
+,Cocher cette case si aucune somme visée par la déclaration n'a été versée au cours de l'exercice,,,,,,,,,,
+,,,,,,,,,,,
+1. Salariés en contrat local,,,,,,,,,,,
+I. Identification du bénéficiaire,,,,,II. Détermination de la rémunération imposable annualisée (MRU),,,,,,III. Impôt sur les traitements et salaires (ITS) retenu à la source (MRU)
+Nom et Prénom,,,NNI,Fonction,Rémunération brute annuelle totale,Cotisations de sécurité sociale,Avantage en nature imposable,Déduction forfaitaire (Art.110-1-c),Autres déductions,Rémunération imposable,
+,,,,,A,B,C,D,E,F=A-B+C-D-E,G
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,Total,,,,,,,
+2. Salariés expatriés,,,,,,,,,,,
+I. Identification du bénéficiaire,,,,,II. Détermination de la rémunération imposable annualisée (MRU),,,,,,III. Impôt sur les traitements et salaires (ITS) retenu à la source (MRU)
+Nom et Prénom,,Nationalité,NNI,Fonction,Rémunération brute annuelle totale,Cotisations de sécurité sociale,Avantage en nature imposable,Déduction forfaitaire (Art.110-1-c),Autres déductions,Rémunération imposable,
+,,,,,A,B,C,D,E,F=A-B+C-D-E,G
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,,,,,,,,
+,,,,Total,,,,,,,

@@ -1,0 +1,18 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const grade_controller_1 = require("../controllers/grade.controller");
+const validate_1 = require("../middleware/validate");
+const auth_1 = require("../middleware/auth");
+const rbac_1 = require("../middleware/rbac");
+const grade_schema_1 = require("@harmony/shared/schemas/grade.schema");
+const tenant_1 = require("../middleware/tenant");
+const client_1 = require("@prisma/client");
+const router = (0, express_1.Router)();
+router.use(tenant_1.tenantResolver, auth_1.authenticateToken);
+router.get('/', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), grade_controller_1.getGrades);
+router.get('/:id', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), grade_controller_1.getGradeById);
+router.post('/', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), (0, validate_1.validate)(grade_schema_1.createGradeSchema), grade_controller_1.createGrade);
+router.put('/:id', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), (0, validate_1.validate)(grade_schema_1.updateGradeSchema), grade_controller_1.updateGrade);
+router.delete('/:id', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), grade_controller_1.deleteGrade);
+exports.default = router;

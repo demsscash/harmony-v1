@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(curl:*)",
+      "Bash(cat apps/api/logs/*.log)",
+      "Bash(head:*)",
+      "Bash(npx prisma:*)",
+      "Bash(npx tsc:*)",
+      "Bash(xargs:*)",
+      "Bash(pnpm add:*)",
+      "Bash(mkdir:*)",
+      "Bash(npx next:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(python3:*)",
+      "Bash(for f in employees leaves payroll tenants users)",
+      "Bash(do echo \"=== $f ===\")",
+      "Read(//Users/demss/Desktop/harmony/apps/web/src/app/[locale]/dashboard/$f/**)",
+      "Bash(done)",
+      "Bash(grep:*)",
+      "Bash(PGPASSWORD=postgres psql:*)",
+      "Bash(npx turbo:*)",
+      "Bash(wc:*)",
+      "Bash(node:*)",
+      "Bash(npx ts-node:*)",
+      "Bash(lsof:*)"
+    ]
+  }
+}

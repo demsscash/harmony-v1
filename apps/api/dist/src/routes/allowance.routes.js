@@ -1,0 +1,23 @@
+"use strict";
+Object.defineProperty(exports, "__esModule", { value: true });
+const express_1 = require("express");
+const allowance_controller_1 = require("../controllers/allowance.controller");
+const validate_1 = require("../middleware/validate");
+const auth_1 = require("../middleware/auth");
+const rbac_1 = require("../middleware/rbac");
+const allowance_schema_1 = require("@harmony/shared/schemas/allowance.schema");
+const tenant_1 = require("../middleware/tenant");
+const client_1 = require("@prisma/client");
+const zod_1 = require("zod");
+const router = (0, express_1.Router)();
+router.use(tenant_1.tenantResolver, auth_1.authenticateToken);
+router.get('/', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), allowance_controller_1.getAllowances);
+router.get('/:id', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), allowance_controller_1.getAllowanceById);
+router.post('/', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), (0, validate_1.validate)(allowance_schema_1.createAllowanceSchema), allowance_controller_1.createAllowance);
+router.put('/:id', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), (0, validate_1.validate)(allowance_schema_1.updateAllowanceSchema), allowance_controller_1.updateAllowance);
+router.delete('/:id', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), allowance_controller_1.deleteAllowance);
+// Grade associations
+const overrideSchema = zod_1.z.object({ amountOverride: zod_1.z.number().positive().optional() });
+router.post('/assign/:gradeId/:allowanceId', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), (0, validate_1.validate)(overrideSchema), allowance_controller_1.assignToGrade);
+router.delete('/assign/:gradeId/:allowanceId', (0, rbac_1.requireRole)([client_1.UserRole.ADMIN, client_1.UserRole.HR]), allowance_controller_1.removeFromGrade);
+exports.default = router;

@@ -1,0 +1,163 @@
+{
+    "name": "Contract Expiry Reminder",
+    "nodes": [
+        {
+            "parameters": {
+                "rule": {
+                    "interval": [
+                        {
+                            "triggerAtHour": 8,
+                            "triggerAtMinute": 0
+                        }
+                    ]
+                }
+            },
+            "id": "cron-trigger",
+            "name": "Every Day at 8am",
+            "type": "n8n-nodes-base.scheduleTrigger",
+            "typeVersion": 1.2,
+            "position": [
+                220,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "GET",
+                "url": "http://localhost:3001/api/notifications/cron/expiring-contracts",
+                "authentication": "genericCredentialType",
+                "genericAuthType": "httpHeaderAuth",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "x-cron-secret",
+                            "value": "harmony-cron-secret-change-me"
+                        }
+                    ]
+                }
+            },
+            "id": "fetch-expiring",
+            "name": "Fetch Expiring Contracts",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                440,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "conditions": {
+                    "number": [
+                        {
+                            "value1": "={{ $json.count }}",
+                            "operation": "larger",
+                            "value2": 0
+                        }
+                    ]
+                }
+            },
+            "id": "check-exists",
+            "name": "Has Expiring Contracts?",
+            "type": "n8n-nodes-base.if",
+            "typeVersion": 2,
+            "position": [
+                660,
+                300
+            ]
+        },
+        {
+            "parameters": {
+                "method": "POST",
+                "url": "http://localhost:3001/api/notifications/cron/send-contract-expiry",
+                "sendHeaders": true,
+                "headerParameters": {
+                    "parameters": [
+                        {
+                            "name": "x-cron-secret",
+                            "value": "harmony-cron-secret-change-me"
+                        },
+                        {
+                            "name": "Content-Type",
+                            "value": "application/json"
+                        }
+                    ]
+                },
+                "sendBody": true,
+                "bodyParameters": {
+                    "parameters": [
+                        {
+                            "name": "data",
+                            "value": "={{ $json.data }}"
+                        }
+                    ]
+                }
+            },
+            "id": "send-alerts",
+            "name": "Send Alert Emails",
+            "type": "n8n-nodes-base.httpRequest",
+            "typeVersion": 4.2,
+            "position": [
+                880,
+                280
+            ]
+        },
+        {
+            "parameters": {},
+            "id": "no-action",
+            "name": "No Action Needed",
+            "type": "n8n-nodes-base.noOp",
+            "typeVersion": 1,
+            "position": [
+                880,
+                420
+            ]
+        }
+    ],
+    "connections": {
+        "Every Day at 8am": {
+            "main": [
+                [
+                    {
+                        "node": "Fetch Expiring Contracts",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Fetch Expiring Contracts": {
+            "main": [
+                [
+                    {
+                        "node": "Has Expiring Contracts?",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        },
+        "Has Expiring Contracts?": {
+            "main": [
+                [
+                    {
+                        "node": "Send Alert Emails",
+                        "type": "main",
+                        "index": 0
+                    }
+                ],
+                [
+                    {
+                        "node": "No Action Needed",
+                        "type": "main",
+                        "index": 0
+                    }
+                ]
+            ]
+        }
+    },
+    "settings": {
+        "executionOrder": "v1"
+    }
+}
