@@ -117,7 +117,7 @@ export default function ForgotPasswordPage() {
                                             <Input
                                                 placeholder="acme"
                                                 {...form.register('subdomain')}
-                                                className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-600 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-r-none rounded-l-xl"
+                                                className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-500 placeholder:italic focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-r-none rounded-l-xl"
                                             />
                                             <span className="h-12 px-4 flex items-center text-sm font-medium text-slate-400 bg-slate-800/80 border border-l-0 border-white/10 rounded-r-xl whitespace-nowrap">
                                                 .harmony.mr
@@ -139,7 +139,7 @@ export default function ForgotPasswordPage() {
                                                 type="email"
                                                 placeholder="nom@entreprise.com"
                                                 {...form.register('email')}
-                                                className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-600 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl"
+                                                className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-500 placeholder:italic focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl"
                                             />
                                         </div>
                                         {form.formState.errors.email && (

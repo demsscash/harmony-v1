@@ -8,7 +8,7 @@ import {
     Home, Users, Calendar, Settings, LogOut,
     Menu, Bell, Search, Briefcase, CreditCard, Banknote, Network, ChevronDown, FileSpreadsheet,
     BookOpen, Award, ClipboardList, MapPin, UserCog, ShieldCheck, Activity, PenTool, Clock, Timer, Wallet,
-    Receipt, BarChart3, ClipboardCheck
+    Receipt, BarChart3, ClipboardCheck, AlertTriangle
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ import { Breadcrumbs } from '@/components/Breadcrumbs';
 import api from '@/lib/api';
 
 export default function DashboardLayout({ children }: { children: React.ReactNode }) {
-    const { user, logoutState } = useAuthStore();
+    const { user, logoutState, tenantLogo, tenantName, setTenantLogo, setTenantName } = useAuthStore();
     const pathname = usePathname();
     const router = useRouter();
     const t = useTranslations('nav');
@@ -29,8 +29,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const isRTL = locale === 'ar';
     const [isMobileOpen, setMobileOpen] = React.useState(false);
     const [notifCount, setNotifCount] = React.useState(0);
-    const [tenantLogo, setTenantLogo] = React.useState<string | null>(null);
-    const [tenantName, setTenantName] = React.useState<string>('Harmony');
+    const [mounted, setMounted] = React.useState(false);
+    React.useEffect(() => { setMounted(true); }, []);
     const isSuperAdminLayout = user?.role === 'SUPER_ADMIN';
 
     // Search state
@@ -95,7 +95,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             .catch(() => {});
     }, [isSuperAdminLayout]);
 
-    // Fetch tenant logo
+    // Fetch tenant info into Zustand (only if not already loaded)
     React.useEffect(() => {
         if (isSuperAdminLayout) return;
         api.get('/settings/tenant')
@@ -105,6 +105,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 if (tenant?.name) setTenantName(tenant.name);
             })
             .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [isSuperAdminLayout]);
 
     // Helper to build trigger's active state
@@ -136,6 +137,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             icon: Users,
             items: [
                 { label: t('employeeList'), href: '/dashboard/employees', icon: Users, desc: td('employeeList') },
+                { label: t('departments'), href: '/dashboard/departments', icon: Briefcase, desc: td('departments') },
                 { label: t('directory'), href: '/dashboard/directory', icon: MapPin, desc: td('directory') },
                 { label: t('orgChart'), href: '/dashboard/organization', icon: Network, desc: td('orgChart') },
                 { label: t('excelImport'), href: '/dashboard/employees/import', icon: FileSpreadsheet, desc: td('excelImport') },
@@ -150,6 +152,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                 { label: t('attendance'), href: '/dashboard/attendance', icon: Clock, desc: td('attendance') },
                 { label: t('expenses'), href: '/dashboard/expenses', icon: Receipt, desc: td('expenses') },
                 { label: t('evaluations'), href: '/dashboard/evaluations', icon: ClipboardCheck, desc: td('evaluations') },
+                { label: t('sanctions'), href: '/dashboard/sanctions', icon: AlertTriangle, desc: td('sanctions') },
                 { label: t('onboarding'), href: '/dashboard/onboarding', icon: ClipboardList, desc: td('onboarding') },
                 { label: t('signatures'), href: '/dashboard/signatures', icon: PenTool, desc: td('signatures') },
             ]
@@ -170,6 +173,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             items: [
                 { label: t('users'), href: '/dashboard/users', icon: UserCog, desc: td('users') },
                 { label: t('gradesAdvantages'), href: '/dashboard/grades', icon: Award, desc: td('gradesAdvantages') },
+                { label: t('orgLevels'), href: '/dashboard/org-levels', icon: Network, desc: td('orgLevels') },
                 { label: t('reports'), href: '/dashboard/reports', icon: BarChart3, desc: td('reports') },
                 ...(user?.role === 'ADMIN' || user?.permissions?.includes('settings') ? [{ label: t('settings'), href: '/dashboard/settings', icon: Settings, desc: td('settings') }] : []),
             ]
@@ -180,12 +184,21 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
     const hrMenuFlat = hrNavGroups.flatMap(g => g.items);
     const menuItems = isSuperAdmin ? superAdminMenu : [{ label: t('home'), href: '/dashboard', icon: Home }, ...hrMenuFlat];
 
-
+    if (!mounted) {
+        return (
+            <div className="min-h-screen w-full bg-[#F8FAFC] flex flex-col">
+                <header className="sticky top-0 z-50 w-full bg-slate-950 text-slate-300 border-b border-slate-800 shadow-xl h-16" />
+                <main className="flex-1 overflow-x-hidden p-4 md:p-8">
+                    <div className="max-w-7xl mx-auto w-full" />
+                </main>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen w-full bg-[#F8FAFC] flex flex-col">
             {/* Skip to content — accessibility */}
-            <a href="#main-content" className="skip-to-content">Aller au contenu principal</a>
+            <a href="#main-content" className="skip-to-content">{tc('skipToContent')}</a>
 
             {/* Top Navigation Bar */}
             <header className="sticky top-0 z-50 w-full bg-slate-950 text-slate-300 border-b border-slate-800 shadow-xl" role="banner">
@@ -206,7 +219,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             </Link>
 
                             {/* Desktop Nav */}
-                            <nav className="hidden md:flex items-center space-x-1" aria-label="Navigation principale">
+                            <nav className="hidden md:flex items-center space-x-1" aria-label={tc('mainNav')}>
                                 {/* Home link */}
                                 <Link
                                     href="/dashboard"
@@ -294,7 +307,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         onFocus={() => searchResults && setSearchOpen(true)}
                                         placeholder={isSuperAdmin ? t('searchInstance') : t('searchEmployee')}
-                                        className="bg-transparent border-none outline-none text-sm text-slate-300 w-full placeholder:text-slate-600 ml-2 opacity-0 group-focus-within:opacity-100 transition-opacity"
+                                        className="bg-transparent border-none outline-none text-sm text-slate-300 w-full placeholder:text-slate-500 placeholder:italic ml-2 opacity-0 group-focus-within:opacity-100 transition-opacity"
                                     />
                                     <kbd className="hidden group-focus-within:hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-800 border border-slate-700 text-[10px] font-medium text-slate-400 shrink-0 ml-auto">⌘K</kbd>
                                 </div>
@@ -395,7 +408,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                             </div>
 
                             {/* Mobile menu button */}
-                            <button className="md:hidden p-2 text-slate-400 hover:text-white" onClick={() => setMobileOpen(!isMobileOpen)} aria-expanded={isMobileOpen} aria-label="Menu de navigation">
+                            <button className="md:hidden p-2 text-slate-400 hover:text-white" onClick={() => setMobileOpen(!isMobileOpen)} aria-expanded={isMobileOpen} aria-label={tc('navMenu')}>
                                 <Menu className="h-6 w-6" />
                             </button>
                         </div>
@@ -451,8 +464,8 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
                                         {user?.firstName?.[0] || user?.email?.[0]}{user?.lastName?.[0]}
                                     </div>
                                     <div>
-                                        <p className="text-sm font-bold text-white">{user?.firstName || "Utilisateur"}</p>
-                                        <p className="text-xs text-slate-500 capitalize">{user?.role?.replace('_', ' ').toLowerCase() || 'Membre'}</p>
+                                        <p className="text-sm font-bold text-white">{user?.firstName || tc('user')}</p>
+                                        <p className="text-xs text-slate-500 capitalize">{user?.role?.replace('_', ' ').toLowerCase() || tc('member')}</p>
                                     </div>
                                 </div>
                                 <Button variant="destructive" size="icon" onClick={handleLogout} className="rounded-full h-10 w-10 shadow-lg">

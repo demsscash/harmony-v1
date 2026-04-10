@@ -88,6 +88,46 @@ export const downloadEmployeeBadge = async (req: Request, res: Response) => {
     }
 };
 
+export const terminateEmployee = async (req: Request, res: Response) => {
+    try {
+        const tenantId = req.tenant?.id!;
+        const userId = req.user?.userId!;
+        const { terminationDate, terminationReason, terminationNotes } = req.body;
+
+        if (!terminationDate || !terminationReason) {
+            res.status(400).json({ success: false, error: 'Date et motif de licenciement requis' });
+            return;
+        }
+
+        const employee = await EmployeeService.terminate(
+            String(req.params.id), tenantId, userId,
+            { terminationDate, terminationReason, terminationNotes }
+        );
+        res.json({ success: true, data: employee });
+    } catch (error: any) {
+        if (error.message.includes('introuvable')) {
+            res.status(404).json({ success: false, error: error.message });
+            return;
+        }
+        res.status(400).json({ success: false, error: error.message });
+    }
+};
+
+export const reinstateEmployee = async (req: Request, res: Response) => {
+    try {
+        const tenantId = req.tenant?.id!;
+        const userId = req.user?.userId!;
+        const employee = await EmployeeService.reinstate(String(req.params.id), tenantId, userId);
+        res.json({ success: true, data: employee });
+    } catch (error: any) {
+        if (error.message.includes('introuvable')) {
+            res.status(404).json({ success: false, error: error.message });
+            return;
+        }
+        res.status(400).json({ success: false, error: error.message });
+    }
+};
+
 export const downloadEmployeeContract = async (req: Request, res: Response) => {
     try {
         const tenantId = req.tenant?.id!;

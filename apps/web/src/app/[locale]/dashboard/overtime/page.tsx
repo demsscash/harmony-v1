@@ -317,9 +317,9 @@ export default function OvertimePage() {
                     </>
                 }
                 texts={{
-                    showing: 'Affichage',
-                    of: 'sur',
-                    rows: 'lignes',
+                    showing: tc('showing'),
+                    of: tc('of'),
+                    rows: tc('rows'),
                     noResults: t('noRecords'),
                 }}
             />

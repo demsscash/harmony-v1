@@ -127,7 +127,7 @@ function ResetPasswordForm() {
                                             </div>
                                             <Input
                                                 type="password" placeholder="Minimum 8 caractères" disabled={isLoading} {...form.register('password')}
-                                                className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-600 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl transition-all"
+                                                className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-500 placeholder:italic focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl transition-all"
                                             />
                                         </div>
                                         {form.formState.errors.password && <p className="text-xs font-medium text-red-400 mt-1 ml-1">{form.formState.errors.password.message}</p>}
@@ -141,7 +141,7 @@ function ResetPasswordForm() {
                                             </div>
                                             <Input
                                                 type="password" placeholder="••••••••" disabled={isLoading} {...form.register('confirm')}
-                                                className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-600 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl transition-all"
+                                                className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-500 placeholder:italic focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl transition-all"
                                             />
                                         </div>
                                         {form.formState.errors.confirm && <p className="text-xs font-medium text-red-400 mt-1 ml-1">{form.formState.errors.confirm.message}</p>}

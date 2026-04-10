@@ -98,11 +98,13 @@ export async function generatePayslipPdf(payslipId: string, tenantId: string): P
             y += 20;
         };
 
+        const fmtAmount = (n: number) => Number(n).toLocaleString('fr-FR').replace(/\s/g, ' ');
+
         const tableRow = (label: string, amount: number, currency: string, isDeduction = false) => {
             doc.rect(col1, y, W, 18).fill(y % 36 === 0 ? '#f1f5f9' : '#ffffff').stroke('#e2e8f0');
             doc.fillColor('#334155').font('Helvetica').fontSize(9).text(label, col1 + 8, y + 4);
             doc.fillColor(isDeduction ? '#dc2626' : '#1e293b').font('Helvetica-Bold').fontSize(9)
-                .text(`${isDeduction ? '- ' : ''}${Number(amount).toLocaleString('fr-FR')} ${currency}`, col2, y + 4, { width: 190, align: 'right' });
+                .text(`${isDeduction ? '- ' : ''}${fmtAmount(amount)} ${currency}`, col2, y + 4, { width: 190, align: 'right' });
             y += 18;
         };
 
@@ -121,8 +123,18 @@ export async function generatePayslipPdf(payslipId: string, tenantId: string): P
         tableHeader('COTISATIONS & DÉDUCTIONS');
         tableRow('CNSS (part salariale 1%)', Number(payslip.cnssEmployee), currency, true);
         tableRow('ITS (Impôt sur salaire)', Number(payslip.itsAmount), currency, true);
-        if (Number(payslip.otherDeductions) > 0) {
-            tableRow('Autres retenues', Number(payslip.otherDeductions), currency, true);
+        if (Number(payslip.attendanceDeductions) > 0) {
+            tableRow('Retards / Absences', Number(payslip.attendanceDeductions), currency, true);
+        }
+        if (Number(payslip.advanceDeductions) > 0) {
+            tableRow('Acompte sur salaire', Number(payslip.advanceDeductions), currency, true);
+        }
+        // Détail des autres déductions (sanctions, etc.)
+        const deducDetails = payslip.deductionsDetail ? JSON.parse(payslip.deductionsDetail as string) : [];
+        for (const ded of deducDetails) {
+            if (ded.type === 'SANCTION') {
+                tableRow(`  ${ded.name}`, ded.amount, currency, true);
+            }
         }
         y += 8;
 
@@ -131,13 +143,13 @@ export async function generatePayslipPdf(payslipId: string, tenantId: string): P
         doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(12)
             .text('NET À PAYER', col1 + 8, y + 8);
         doc.fontSize(14)
-            .text(`${Number(payslip.netSalary).toLocaleString('fr-FR')} ${currency}`, col2, y + 7, { width: 190, align: 'right' });
+            .text(`${fmtAmount(Number(payslip.netSalary))} ${currency}`, col2, y + 7, { width: 190, align: 'right' });
         y += 40;
 
         // ── Employer contributions (info) ────────────────────────
         if (Number(payslip.cnssEmployer) > 0) {
             doc.fillColor('#94a3b8').font('Helvetica').fontSize(8)
-                .text(`Cotisations patronales CNSS (13%) : ${Number(payslip.cnssEmployer).toLocaleString('fr-FR')} ${currency} (non déduit du salaire — charge employeur)`, col1, y + 6, { width: W });
+                .text(`Cotisations patronales CNSS (13%) : ${fmtAmount(Number(payslip.cnssEmployer))} ${currency} (non déduit du salaire — charge employeur)`, col1, y + 6, { width: W });
             y += 20;
         }
 
@@ -152,7 +164,7 @@ export async function generatePayslipPdf(payslipId: string, tenantId: string): P
             doc.rect(col1, y, W, 16).fill('#f8fafc').stroke('#e2e8f0');
             doc.fillColor('#64748b').font('Helvetica').fontSize(8).text(label, col1 + 8, y + 3);
             doc.fillColor(isDeduction ? '#dc2626' : '#0f172a').font('Helvetica-Bold').fontSize(8)
-                .text(`${Number(amount).toLocaleString('fr-FR')} ${currency}`, col2, y + 3, { width: 190, align: 'right' });
+                .text(`${fmtAmount(amount)} ${currency}`, col2, y + 3, { width: 190, align: 'right' });
             y += 16;
         };
         ytdRow('Brut cumulé', ytd.gross);
@@ -424,7 +436,7 @@ export class PdfService {
     static async generateEmployeeBadge(employeeId: string, tenantId: string): Promise<Buffer> {
         const employee = await prisma.employee.findFirst({
             where: { id: employeeId, tenantId },
-            include: { department: true }
+            include: { department: true, orgLevel: true }
         });
 
         if (!employee) {
@@ -433,103 +445,131 @@ export class PdfService {
 
         const badgeTenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
         const badgeLogoBuffer = getLogoBuffer(badgeTenant?.logo);
+        const photoBuffer = getLogoBuffer(employee.photo);
 
         return new Promise((resolve, reject) => {
-            const doc = new PDFDocument({
-                size: [226, 340], // ~6cm x 9cm badge in points (1pt = 0.353mm)
-                margin: 0,
-            });
+            const W = 243;
+            const H = 390;
+            const doc = new PDFDocument({ size: [W, H], margin: 0 });
 
             const chunks: Buffer[] = [];
             doc.on('data', (chunk: Buffer) => chunks.push(chunk));
             doc.on('end', () => resolve(Buffer.concat(chunks)));
             doc.on('error', reject);
 
-            const W = 226;
-            const H = 340;
+            const pad = 18;
+            const contentW = W - pad * 2;
 
-            // ── Header background ──────────────────────────────────────────
-            doc.rect(0, 0, W, 70).fill('#2563eb');
+            // ── Card border ───────────────────────────────────────────────
+            doc.rect(0, 0, W, H).fill('#ffffff');
+            doc.rect(0, 0, W, 4).fill('#1e3a5f');
+
+            // ── Header: logo + company ────────────────────────────────────
+            let hy = 14;
             if (badgeLogoBuffer) {
-                try { doc.image(badgeLogoBuffer, W / 2 - 15, 6, { height: 30, fit: [30, 30] }); } catch { /* skip */ }
+                try {
+                    doc.image(badgeLogoBuffer, pad, hy, { height: 24, fit: [24, 24] });
+                    doc.fillColor('#1e3a5f').font('Helvetica-Bold').fontSize(12)
+                        .text((badgeTenant?.name || 'HARMONY').toUpperCase(), pad + 30, hy + 2);
+                    doc.fillColor('#64748b').font('Helvetica').fontSize(6.5)
+                        .text("CARTE PROFESSIONNELLE", pad + 30, hy + 16);
+                } catch {
+                    doc.fillColor('#1e3a5f').font('Helvetica-Bold').fontSize(12)
+                        .text((badgeTenant?.name || 'HARMONY').toUpperCase(), pad, hy + 2);
+                    doc.fillColor('#64748b').font('Helvetica').fontSize(6.5)
+                        .text("CARTE PROFESSIONNELLE", pad, hy + 16);
+                }
+            } else {
+                doc.fillColor('#1e3a5f').font('Helvetica-Bold').fontSize(12)
+                    .text((badgeTenant?.name || 'HARMONY').toUpperCase(), pad, hy + 2);
+                doc.fillColor('#64748b').font('Helvetica').fontSize(6.5)
+                    .text("CARTE PROFESSIONNELLE", pad, hy + 16);
             }
 
-            // Company name
-            doc.fillColor('#ffffff')
-                .font('Helvetica-Bold')
-                .fontSize(13)
-                .text(badgeTenant?.name || 'HARMONY ERP', 0, badgeLogoBuffer ? 38 : 14, { align: 'center', width: W });
+            // ── Thin line separator ───────────────────────────────────────
+            hy = 46;
+            doc.moveTo(pad, hy).lineTo(W - pad, hy).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
 
-            if (!badgeLogoBuffer) {
-                doc.fillColor('#bfdbfe')
-                    .font('Helvetica')
-                    .fontSize(7)
-                    .text('Système de Gestion RH', 0, 32, { align: 'center', width: W });
+            // ── Photo (rounded rectangle) ─────────────────────────────────
+            const photoSize = 80;
+            const photoX = (W - photoSize) / 2;
+            const photoY = 56;
+
+            if (photoBuffer) {
+                try {
+                    // Rounded clip for the photo
+                    doc.save();
+                    doc.roundedRect(photoX, photoY, photoSize, photoSize, 6).clip();
+                    doc.image(photoBuffer, photoX, photoY, { width: photoSize, height: photoSize });
+                    doc.restore();
+                    // Border around the photo
+                    doc.roundedRect(photoX, photoY, photoSize, photoSize, 6).strokeColor('#cbd5e1').lineWidth(1).stroke();
+                } catch {
+                    // Fallback: initials in rounded rect
+                    doc.roundedRect(photoX, photoY, photoSize, photoSize, 6).fill('#f1f5f9');
+                    doc.roundedRect(photoX, photoY, photoSize, photoSize, 6).strokeColor('#cbd5e1').lineWidth(1).stroke();
+                    const initials = `${employee.firstName[0]}${employee.lastName[0]}`.toUpperCase();
+                    doc.fillColor('#475569').font('Helvetica-Bold').fontSize(28)
+                        .text(initials, photoX, photoY + 26, { width: photoSize, align: 'center' });
+                }
+            } else {
+                doc.roundedRect(photoX, photoY, photoSize, photoSize, 6).fill('#f1f5f9');
+                doc.roundedRect(photoX, photoY, photoSize, photoSize, 6).strokeColor('#cbd5e1').lineWidth(1).stroke();
+                const initials = `${employee.firstName[0]}${employee.lastName[0]}`.toUpperCase();
+                doc.fillColor('#475569').font('Helvetica-Bold').fontSize(28)
+                    .text(initials, photoX, photoY + 26, { width: photoSize, align: 'center' });
             }
 
-            // ── Avatar circle ──────────────────────────────────────────────
-            const cx = W / 2;
-            const cy = 70;
-            const r = 36;
-            doc.circle(cx, cy, r + 3).fill('#ffffff'); // white border
-            doc.circle(cx, cy, r).fill('#e0e7ff');     // light blue bg
+            // ── Name ──────────────────────────────────────────────────────
+            let y = photoY + photoSize + 12;
+            const fullName = `${employee.firstName} ${employee.lastName}`;
+            doc.fillColor('#0f172a').font('Helvetica-Bold').fontSize(14)
+                .text(fullName, pad, y, { align: 'center', width: contentW });
+            y += 18;
 
-            // Initials
-            const initials = `${employee.firstName[0]}${employee.lastName[0]}`.toUpperCase();
-            doc.fillColor('#2563eb')
-                .font('Helvetica-Bold')
-                .fontSize(22)
-                .text(initials, cx - 18, cy - 14, { width: 36, align: 'center' });
+            // ── Position ──────────────────────────────────────────────────
+            doc.fillColor('#475569').font('Helvetica').fontSize(9)
+                .text(employee.position, pad, y, { align: 'center', width: contentW });
+            y += 14;
 
-            // ── Name & Position ────────────────────────────────────────────
-            const name = `${employee.firstName} ${employee.lastName}`;
-            doc.fillColor('#1e293b')
-                .font('Helvetica-Bold')
-                .fontSize(13)
-                .text(name, 16, 118, { align: 'center', width: W - 32 });
-
-            doc.fillColor('#64748b')
-                .font('Helvetica')
-                .fontSize(9)
-                .text(employee.position.toUpperCase(), 16, 136, { align: 'center', width: W - 32 });
-
-            if (employee.department) {
-                doc.fillColor('#94a3b8')
-                    .fontSize(8)
-                    .text(employee.department.name, 16, 152, { align: 'center', width: W - 32 });
+            // ── Department & Level ────────────────────────────────────────
+            const subParts: string[] = [];
+            if (employee.department) subParts.push(employee.department.name);
+            if (employee.orgLevel) subParts.push(employee.orgLevel.name);
+            if (subParts.length > 0) {
+                doc.fillColor('#94a3b8').font('Helvetica').fontSize(7.5)
+                    .text(subParts.join('  ·  '), pad, y, { align: 'center', width: contentW });
+                y += 12;
             }
 
-            // ── Divider ────────────────────────────────────────────────────
-            doc.moveTo(24, 170).lineTo(W - 24, 170).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
+            // ── Separator ─────────────────────────────────────────────────
+            y += 6;
+            doc.moveTo(pad, y).lineTo(W - pad, y).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
+            y += 12;
 
             // ── Info rows ─────────────────────────────────────────────────
-            const infoY = 180;
-            const labelColor = '#94a3b8';
-            const valueColor = '#1e293b';
-
-            const rows = [
-                { label: 'Matricule', value: employee.matricule || '—' },
-                { label: 'Contrat', value: employee.contractType },
-                { label: 'Embauché le', value: new Date(employee.hireDate).toLocaleDateString('fr-FR') },
+            const infoItems = [
+                { label: 'MATRICULE', value: employee.matricule || '—' },
+                { label: 'CONTRAT', value: employee.contractType },
+                { label: "DATE D'EMBAUCHE", value: new Date(employee.hireDate).toLocaleDateString('fr-FR') },
             ];
 
-            rows.forEach((row, i) => {
-                const y = infoY + i * 26;
-                doc.fillColor(labelColor).font('Helvetica').fontSize(7).text(row.label, 24, y);
-                doc.fillColor(valueColor).font('Helvetica-Bold').fontSize(9).text(row.value, 24, y + 9);
-            });
+            for (const item of infoItems) {
+                // Label on left, value on right
+                doc.fillColor('#94a3b8').font('Helvetica').fontSize(6.5)
+                    .text(item.label, pad, y + 1);
+                doc.fillColor('#1e293b').font('Helvetica-Bold').fontSize(9)
+                    .text(item.value, pad, y, { align: 'right', width: contentW });
+                y += 18;
+            }
 
-            // ── QR-code placeholder ────────────────────────────────────────
-            const qrY = infoY + rows.length * 26 + 8;
-            doc.roundedRect(W / 2 - 28, qrY, 56, 56, 4).fillAndStroke('#f8fafc', '#e2e8f0');
-            doc.fillColor('#94a3b8').font('Helvetica').fontSize(6)
-                .text('QR Code', W / 2 - 28, qrY + 24, { width: 56, align: 'center' });
+            // ── Bottom accent bar + footer ────────────────────────────────
+            doc.rect(0, H - 28, W, 28).fill('#f8fafc');
+            doc.rect(0, H - 28, W, 0.5).fill('#e2e8f0');
+            doc.rect(0, H - 4, W, 4).fill('#1e3a5f');
 
-            // ── Footer ─────────────────────────────────────────────────────
-            doc.rect(0, H - 36, W, 36).fill('#f8fafc');
-            doc.moveTo(0, H - 36).lineTo(W, H - 36).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
-            doc.fillColor('#94a3b8').font('Helvetica').fontSize(6.5)
-                .text('Accès Autorisé • Strictement Personnel', 0, H - 23, { align: 'center', width: W });
+            doc.fillColor('#94a3b8').font('Helvetica').fontSize(5.5)
+                .text(`${badgeTenant?.name || 'Harmony'}  ·  Accès Autorisé  ·  Strictement Personnel`, 0, H - 20, { align: 'center', width: W });
 
             doc.end();
         });
@@ -538,7 +578,12 @@ export class PdfService {
     static async generateEmployeeContract(employeeId: string, tenantId: string): Promise<Buffer> {
         const employee = await prisma.employee.findFirst({
             where: { id: employeeId, tenantId },
-            include: { department: true }
+            include: {
+                department: true,
+                grade: true,
+                orgLevel: true,
+                manager: { select: { firstName: true, lastName: true, position: true } },
+            }
         });
 
         if (!employee) {
@@ -590,7 +635,7 @@ export class PdfService {
             const tenantName = tenant?.name || 'HARMONY ERP';
             const fullName = `${employee.firstName} ${employee.lastName}`;
             const startDate = new Date(employee.hireDate).toLocaleDateString('fr-FR');
-            const salaryFmt = Number(employee.baseSalary).toLocaleString('fr-FR');
+            const salaryFmt = Number(employee.baseSalary).toLocaleString('fr-FR').replace(/\s/g, ' ');
 
             // Add logo if available
             const contractLogoBuffer = getLogoBuffer(tenant?.logo);
@@ -600,7 +645,49 @@ export class PdfService {
 
             if (templateContent) {
                 // ── Custom template path ───────────────────────────────
-                const title = `CONTRAT DE TRAVAIL ${employee.contractType.toUpperCase()}`;
+                const genderPrefix = employee.gender === 'MALE' ? 'M.' : employee.gender === 'FEMALE' ? 'Mme' : 'M./Mme';
+                const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+
+                // Build all replacement variables
+                const customVars: Record<string, string> = {
+                    EMPLOYEE_NAME: fullName,
+                    GENDER_PREFIX: genderPrefix,
+                    POSITION: employee.position,
+                    DEPARTMENT: employee.department?.name || '',
+                    START_DATE: startDate,
+                    CONTRACT_TYPE: employee.contractType,
+                    SALARY: salaryFmt,
+                    CURRENCY: employee.currency || 'MRU',
+                    MATRICULE: employee.matricule || '',
+                    CIN: employee.cin || '',
+                    DOB: employee.dateOfBirth ? new Date(employee.dateOfBirth).toLocaleDateString('fr-FR') : '',
+                    PHONE: employee.phone || '',
+                    EMAIL: employee.email || '',
+                    ADDRESS: employee.address || '',
+                    GRADE: employee.grade?.name || '',
+                    ORG_LEVEL: employee.orgLevel?.name || '',
+                    MANAGER: employee.manager ? `${employee.manager.firstName} ${employee.manager.lastName}` : '',
+                    MANAGER_POSITION: employee.manager?.position || '',
+                    END_DATE: employee.contractEndDate ? new Date(employee.contractEndDate).toLocaleDateString('fr-FR') : '',
+                    TRIAL_END: employee.trialEndDate ? new Date(employee.trialEndDate).toLocaleDateString('fr-FR') : '',
+                    COMPANY_NAME: tenantName,
+                    TODAY: today,
+                };
+
+                let customText = templateContent;
+
+                // Normalize curly quotes to straight braces (copy-paste issue)
+                customText = customText.replace(/[\u201C\u201D\u201E\u201F\u2033\u2036]/g, '"');
+                customText = customText.replace(/[\u2018\u2019\u201A\u201B\u2032\u2035]/g, "'");
+                customText = customText.replace(/\uFF5B/g, '{').replace(/\uFF5D/g, '}');
+
+                for (const [key, value] of Object.entries(customVars)) {
+                    customText = customText.replace(new RegExp(`\\{\\{\\s*${key}\\s*\\}\\}`, 'gi'), value);
+                }
+
+                // Remove lines that still have unreplaced empty variables
+                customText = customText.replace(/^.*\{\{[A-Z_]+\}\}.*$\n?/gm, '');
+                customText = customText.replace(/\n{3,}/g, '\n\n');
 
                 // Header
                 doc.font('Helvetica-Bold').fontSize(16).text(tenantName, { align: 'center' });
@@ -609,45 +696,18 @@ export class PdfService {
                 doc.moveDown(2);
 
                 // Title
+                const title = `CONTRAT DE TRAVAIL ${employee.contractType.toUpperCase()}`;
                 doc.font('Helvetica-Bold').fontSize(14).text(title, { align: 'center', underline: true });
                 doc.moveDown(2);
 
                 // Body
                 doc.font('Helvetica').fontSize(11).lineGap(4);
-
-                doc.text('Entre les soussignés :');
-                doc.moveDown(1);
-                doc.font('Helvetica-Bold').text(`${tenantName} (L'Employeur)`);
-                doc.font('Helvetica').text('Représenté par la Direction Générale.');
-                doc.moveDown(1);
-                doc.text('Et');
-                doc.moveDown(1);
-
-                doc.font('Helvetica-Bold').text(`${fullName} (L'Employé)`);
-                if (employee.cin) doc.font('Helvetica').text(`CIN / NNI : ${employee.cin}`);
-                if (employee.address) doc.text(`Adresse : ${employee.address}`);
-
-                doc.moveDown(2);
-                doc.font('Helvetica-Bold').text('Il a été convenu ce qui suit :');
-                doc.moveDown(1);
-
-                let customText = templateContent;
-
-                // Replace Variables
-                customText = customText.replace(/{{EMPLOYEE_NAME}}/g, fullName);
-                customText = customText.replace(/{{POSITION}}/g, employee.position);
-                customText = customText.replace(/{{DEPARTMENT}}/g, employee.department ? employee.department.name : '');
-                customText = customText.replace(/{{START_DATE}}/g, startDate);
-                customText = customText.replace(/{{CONTRACT_TYPE}}/g, employee.contractType);
-                customText = customText.replace(/{{SALARY}}/g, salaryFmt);
-                customText = customText.replace(/{{CURRENCY}}/g, employee.currency || 'MRU');
-
-                doc.font('Helvetica').text(customText);
+                doc.text(customText);
                 doc.moveDown(2);
 
                 // Signatures
                 doc.font('Helvetica').fontSize(10);
-                doc.text(`Fait en deux exemplaires originaux, le ${new Date().toLocaleDateString('fr-FR')}`, { align: 'right' });
+                doc.text(`Fait en deux exemplaires originaux, le ${today}`, { align: 'right' });
                 doc.moveDown(3);
 
                 const signatureY = doc.y;
@@ -656,21 +716,32 @@ export class PdfService {
             } else {
                 // ── Legal template path (Mauritanian labor law) ────────
                 const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+                const genderLabel = employee.gender === 'MALE' ? 'M.' : employee.gender === 'FEMALE' ? 'Mme' : 'M./Mme';
+                const dobFormatted = employee.dateOfBirth ? `Né(e) le ${new Date(employee.dateOfBirth).toLocaleDateString('fr-FR')}` : '';
                 const vars: Record<string, string> = {
                     COMPANY_NAME: tenantName,
                     EMPLOYEE_NAME: fullName,
+                    GENDER_PREFIX: genderLabel,
                     POSITION: employee.position,
                     DEPARTMENT_LINE: employee.department ? ` au sein du département ${employee.department.name}` : '',
+                    GRADE_LINE: employee.grade ? `Grade : ${employee.grade.name}` : '',
+                    ORG_LEVEL_LINE: employee.orgLevel ? `Niveau hiérarchique : ${employee.orgLevel.name}` : '',
+                    MANAGER_LINE: employee.manager ? `Supérieur hiérarchique : ${employee.manager.firstName} ${employee.manager.lastName} (${employee.manager.position})` : '',
                     CIN_LINE: employee.cin ? `CIN / NNI : ${employee.cin}` : '',
+                    DOB_LINE: dobFormatted,
                     ADDRESS_LINE: employee.address ? `Adresse : ${employee.address}` : '',
+                    PHONE_LINE: employee.phone ? `Téléphone : ${employee.phone}` : '',
+                    EMAIL_LINE: employee.email ? `Email : ${employee.email}` : '',
                     START_DATE: startDate,
                     END_DATE: employee.contractEndDate ? new Date(employee.contractEndDate).toLocaleDateString('fr-FR') : '—',
+                    TRIAL_END: employee.trialEndDate ? new Date(employee.trialEndDate).toLocaleDateString('fr-FR') : '',
                     DURATION: employee.contractEndDate ? calculateDuration(new Date(employee.hireDate), new Date(employee.contractEndDate)) : '—',
                     SALARY: salaryFmt,
                     CURRENCY: employee.currency || 'MRU',
                     CITY: tenant?.address?.split(',')[0]?.trim() || 'Nouakchott',
                     TODAY: today,
                     CDD_REASON: 'Accroissement temporaire d\'activité',
+                    MATRICULE: employee.matricule || '',
                 };
 
                 const template = getContractTemplate(employee.contractType, vars);

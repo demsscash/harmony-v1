@@ -3,6 +3,7 @@ import { CreatePayrollInput, UpdatePayrollStatusInput } from '@harmony/shared/sc
 import { AttendanceService } from './attendance.service';
 import { OvertimeService } from './overtime.service';
 import { AdvanceService } from './advance.service';
+import { SanctionService } from './sanction.service';
 
 const DEFAULT_ITS_BRACKETS = [
     { min: 0, max: 9000, rate: 0 },
@@ -71,6 +72,37 @@ export class PayrollService {
                 ...data,
                 tenantId
             }
+        });
+    }
+
+    /**
+     * Modifier une campagne de paie (mois/année) — uniquement DRAFT
+     */
+    static async update(id: string, tenantId: string, data: { month?: number; year?: number }) {
+        const payroll = await prisma.payroll.findFirst({ where: { id, tenantId } });
+        if (!payroll) throw new Error('Campagne de paie introuvable');
+        if (payroll.status !== 'DRAFT') throw new Error('Impossible de modifier une campagne non brouillon');
+
+        const month = data.month ?? payroll.month;
+        const year = data.year ?? payroll.year;
+
+        // Vérifier qu'il n'y a pas de doublon
+        if (month !== payroll.month || year !== payroll.year) {
+            const existing = await prisma.payroll.findFirst({
+                where: { tenantId, month, year, id: { not: id } },
+            });
+            if (existing) throw new Error(`Une campagne existe déjà pour ${month}/${year}`);
+        }
+
+        // Supprimer les bulletins existants avant de régénérer
+        await prisma.payslip.deleteMany({ where: { payrollId: id } });
+
+        // Reset advances that were deducted
+        await AdvanceService.resetDeductedForPayroll(id);
+
+        return prisma.payroll.update({
+            where: { id },
+            data: { month, year },
         });
     }
 
@@ -218,8 +250,12 @@ export class PayrollService {
                 });
             }
 
+            // ── Sanctions (déductions sur primes / retenues) ──
+            const activeSanctions = await SanctionService.getActiveForPayroll(tenantId, employee.id, payroll.month, payroll.year);
+            const totalSanctionDeduction = activeSanctions.reduce((sum, s) => sum + Number(s.deductionAmount), 0);
+
             // ── Net ──
-            const netSalary = grossSalary - cnssEmployeeAmount - itsAmount - attendanceDeductions - totalAdvanceDeduction;
+            const netSalary = grossSalary - cnssEmployeeAmount - itsAmount - attendanceDeductions - totalAdvanceDeduction - totalSanctionDeduction;
 
             // ── Détail déductions ──
             const deductionsDetailArr: any[] = [];
@@ -228,6 +264,10 @@ export class PayrollService {
             }
             if (totalAdvanceDeduction > 0) {
                 deductionsDetailArr.push({ name: 'Acompte sur salaire', amount: totalAdvanceDeduction, type: 'ADVANCE' });
+            }
+            for (const s of activeSanctions) {
+                const label = s.advantage?.name ? `Sanction — ${s.advantage.name}` : 'Sanction — Retenue';
+                deductionsDetailArr.push({ name: label, amount: Number(s.deductionAmount), type: 'SANCTION' });
             }
             if (overtimePay > 0) {
                 advantagesDetail.push({ name: 'Heures supplémentaires', amount: overtimePay, isTaxable: true });
@@ -245,7 +285,7 @@ export class PayrollService {
                 itsAmount,
                 attendanceDeductions,
                 advanceDeductions: totalAdvanceDeduction,
-                otherDeductions: 0,
+                otherDeductions: totalSanctionDeduction,
                 netSalary,
                 advantagesDetail: JSON.stringify(advantagesDetail),
                 deductionsDetail: deductionsDetailArr.length > 0 ? JSON.stringify(deductionsDetailArr) : undefined,

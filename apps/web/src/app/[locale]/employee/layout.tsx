@@ -15,7 +15,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { LanguageSwitcher } from '@/components/language-switcher';
 
 export default function EmployeeLayout({ children }: { children: React.ReactNode }) {
-    const { user, logoutState } = useAuthStore();
+    const { user, logoutState, tenantLogo, tenantName, setTenantLogo, setTenantName } = useAuthStore();
     const pathname = usePathname();
     const routerNav = useRouter();
     const t = useTranslations('employeePortal');
@@ -24,8 +24,6 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
     const isRTL = locale === 'ar';
     const [isMobileOpen, setMobileOpen] = React.useState(false);
     const [notifCount, setNotifCount] = React.useState(0);
-    const [tenantLogo, setTenantLogo] = React.useState<string | null>(null);
-    const [tenantName, setTenantName] = React.useState<string>('Harmony');
     const [mounted, setMounted] = React.useState(false);
     React.useEffect(() => { setMounted(true); }, []);
 
@@ -68,7 +66,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
             .catch(() => {});
     }, []);
 
-    // Fetch tenant logo
+    // Fetch tenant info into Zustand (only if not already loaded)
     React.useEffect(() => {
         api.get('/settings/tenant')
             .then(res => {
@@ -77,6 +75,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
                 if (tenant?.name) setTenantName(tenant.name);
             })
             .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const handleLogout = () => {
@@ -116,7 +115,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
     return (
         <div className="min-h-screen w-full bg-[#F8FAFC] flex flex-col">
             {/* Skip to content — accessibility */}
-            <a href="#main-content" className="skip-to-content">Aller au contenu principal</a>
+            <a href="#main-content" className="skip-to-content">{tc('skipToContent')}</a>
 
             {/* Top Navigation Bar */}
             <header className="sticky top-0 z-50 w-full bg-slate-950 text-slate-300 border-b border-slate-800 shadow-xl" role="banner">
@@ -137,7 +136,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
                             </Link>
 
                             {/* Desktop Nav */}
-                            <nav className="hidden md:flex items-center space-x-1" aria-label="Navigation principale">
+                            <nav className="hidden md:flex items-center space-x-1" aria-label={tc('mainNav')}>
                                 {employeeMenu.map((item) => (
                                     <Link
                                         key={item.href}
@@ -196,7 +195,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
                                         onChange={(e) => setSearchQuery(e.target.value)}
                                         onFocus={() => searchResults && setSearchOpen(true)}
                                         placeholder={t('myLeaves') + '...'}
-                                        className="bg-transparent border-none outline-none text-sm text-slate-300 w-full placeholder:text-slate-600 ml-2 opacity-0 group-focus-within:opacity-100 transition-opacity"
+                                        className="bg-transparent border-none outline-none text-sm text-slate-300 w-full placeholder:text-slate-500 placeholder:italic ml-2 opacity-0 group-focus-within:opacity-100 transition-opacity"
                                     />
                                 </div>
                                 {searchOpen && searchResults && (
@@ -244,7 +243,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
                                 </DropdownMenuTrigger>
                                 <DropdownMenuContent align="end" className="w-64 mt-2 p-2 rounded-xl border-slate-800 bg-slate-950 text-slate-300 shadow-2xl">
                                     <div className="p-2 flex flex-col space-y-1">
-                                        <p className="text-sm font-medium leading-none text-white">{user?.firstName || 'Employé'}</p>
+                                        <p className="text-sm font-medium leading-none text-white">{user?.firstName || t('employee')}</p>
                                         <p className="text-xs leading-none text-slate-500">{user?.email}</p>
                                     </div>
                                     <DropdownMenuSeparator className="bg-slate-800" />
@@ -255,7 +254,7 @@ export default function EmployeeLayout({ children }: { children: React.ReactNode
                                 </DropdownMenuContent>
                             </DropdownMenu>
 
-                            <Button onClick={() => setMobileOpen(true)} variant="ghost" size="icon" className="md:hidden text-slate-400 hover:text-white hover:bg-slate-800" aria-expanded={isMobileOpen} aria-label="Menu de navigation">
+                            <Button onClick={() => setMobileOpen(true)} variant="ghost" size="icon" className="md:hidden text-slate-400 hover:text-white hover:bg-slate-800" aria-expanded={isMobileOpen} aria-label={tc('navMenu')}>
                                 <Menu className="h-5 w-5" />
                             </Button>
                         </div>

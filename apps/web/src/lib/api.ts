@@ -2,7 +2,16 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import { useAuthStore } from '@/store/authStore';
 
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://127.0.0.1:3001/api';
+// Use the same hostname as the page to keep cookies same-site (avoid SameSite=Strict/Lax cross-site issues in dev)
+function getApiBaseUrl(): string {
+    if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
+    if (typeof window !== 'undefined') {
+        return `${window.location.protocol}//${window.location.hostname}:3001/api`;
+    }
+    return 'http://localhost:3001/api';
+}
+
+export const API_BASE_URL = getApiBaseUrl();
 
 const api = axios.create({
     baseURL: API_BASE_URL,
@@ -73,7 +82,7 @@ api.interceptors.response.use(
 
                 if (refreshResponse.data?.success && refreshResponse.data?.data?.accessToken) {
                     const newToken = refreshResponse.data.data.accessToken;
-                    Cookies.set('accessToken', newToken, { expires: 1 / 96, secure: window.location.protocol === 'https:', sameSite: 'strict' }); // 15 mins
+                    Cookies.set('accessToken', newToken, { expires: 1 / 24, secure: window.location.protocol === 'https:', sameSite: 'lax' }); // 1 hour
                     api.defaults.headers.common['Authorization'] = `Bearer ${newToken}`;
                     originalRequest.headers['Authorization'] = `Bearer ${newToken}`;
                     return api(originalRequest);

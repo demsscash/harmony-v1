@@ -199,8 +199,8 @@ function HRDashboard({ user }: { user: any }) {
     // Chart 1: employees per department
     const deptChartData = deptList.map(d => ({
         name: d.name?.length > 12 ? d.name.slice(0, 12) + '…' : d.name,
-        employés: empList.filter(e => e.departmentId === d.id).length,
-    })).filter(d => d.employés > 0);
+        count: empList.filter(e => e.departmentId === d.id).length,
+    })).filter(d => d.count > 0);
 
     // Chart 2: leave distribution by type (motif)
     const MOTIF_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#10b981', '#ef4444', '#ec4899', '#06b6d4', '#94a3b8'];
@@ -276,10 +276,10 @@ function HRDashboard({ user }: { user: any }) {
                                         {payrollData.isEstimate ? (
                                             <>
                                                 <div className="flex items-center justify-between">
-                                                    <span className="text-xs font-medium text-white/60">Salaires de base</span>
+                                                    <span className="text-xs font-medium text-white/60">{t('baseSalaries')}</span>
                                                     <span className="text-lg font-bold text-white">{payrollData.grossSalary.toLocaleString('fr-FR')} MRU</span>
                                                 </div>
-                                                <p className="text-[10px] text-white/40">Aucune campagne de paie</p>
+                                                <p className="text-[10px] text-white/40">{t('noPayrollCampaign')}</p>
                                             </>
                                         ) : (
                                             <>
@@ -341,7 +341,7 @@ function HRDashboard({ user }: { user: any }) {
                                         formatter={(v: any) => [v, t('employees')]}
                                         cursor={{ fill: '#f1f5f9' }}
                                     />
-                                    <Bar dataKey="employés" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={48} />
+                                    <Bar dataKey="count" fill="#3b82f6" radius={[6, 6, 0, 0]} maxBarSize={48} />
                                 </BarChart>
                             </ResponsiveContainer>
                         )}

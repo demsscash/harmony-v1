@@ -79,7 +79,7 @@ export default function LoginPage() {
                     tenantSubdomain: user.tenantSubdomain || (loginMode === 'tenant' ? data.subdomain?.trim() : undefined),
                 };
 
-                Cookies.set('accessToken', accessToken, { expires: 1 / 96, secure: window.location.protocol === 'https:', sameSite: 'strict' });
+                Cookies.set('accessToken', accessToken, { expires: 1 / 24, secure: window.location.protocol === 'https:', sameSite: 'lax' });
                 loginState(enrichedUser, accessToken);
 
                 setSuccessAnim(true);
@@ -171,7 +171,7 @@ export default function LoginPage() {
                                                 <Input
                                                     placeholder="acme"
                                                     autoComplete="off" disabled={isLoading} {...form.register('subdomain')}
-                                                    className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-600 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-r-none rounded-l-xl transition-all"
+                                                    className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-500 placeholder:italic focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-r-none rounded-l-xl transition-all"
                                                 />
                                                 <span className="h-12 px-4 flex items-center text-sm font-medium text-slate-400 bg-slate-800/80 border border-l-0 border-white/10 rounded-r-xl whitespace-nowrap">
                                                     .harmony.mr
@@ -208,12 +208,12 @@ export default function LoginPage() {
                                     {authMethod === 'email' ? (
                                         <Input
                                             type="email" placeholder="nom@entreprise.com" autoComplete="email" disabled={isLoading} {...form.register('email')}
-                                            className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-600 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl transition-all"
+                                            className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-500 placeholder:italic focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl transition-all"
                                         />
                                     ) : (
                                         <Input
                                             type="tel" placeholder="22 33 44 55" autoComplete="tel" disabled={isLoading} {...form.register('phone')}
-                                            className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-600 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl transition-all"
+                                            className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-500 placeholder:italic focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl transition-all"
                                         />
                                     )}
                                 </div>
@@ -232,7 +232,7 @@ export default function LoginPage() {
                                     </div>
                                     <Input
                                         type="password" placeholder="••••••••" autoComplete="current-password" disabled={isLoading} {...form.register('password')}
-                                        className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-600 focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl transition-all"
+                                        className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-500 placeholder:italic focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-xl transition-all"
                                     />
                                 </div>
                                 {form.formState.errors.password && <p className="text-xs font-medium text-red-400 mt-1 ml-1">{form.formState.errors.password.message}</p>}

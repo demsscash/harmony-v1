@@ -13,7 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Save, User as UserIcon, Briefcase, FileText, CheckCircle2, CalendarIcon, ShieldCheck } from 'lucide-react';
+import { Loader2, ArrowLeft, Save, User as UserIcon, Briefcase, FileText, CheckCircle2, CalendarIcon, ShieldCheck, Camera, X } from 'lucide-react';
 import Link from 'next/link';
 import { motion } from 'framer-motion';
 
@@ -28,6 +28,21 @@ export default function EditEmployeePage() {
     const employeeId = params?.id as string;
     const [isLoading, setIsLoading] = useState(false);
     const [isFetching, setIsFetching] = useState(true);
+    const [photoPreview, setPhotoPreview] = useState<string | null>(null);
+    const photoInputRef = React.useRef<HTMLInputElement>(null);
+
+    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        if (file.size > 500 * 1024) { toast.error('Photo trop volumineuse (max 500 Ko)'); return; }
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result as string;
+            setPhotoPreview(result);
+            methods.setValue('photo', result);
+        };
+        reader.readAsDataURL(file);
+    };
 
     // Organization Data for Selects
     const [departments, setDepartments] = useState<any[]>([]);
@@ -53,7 +68,7 @@ export default function EditEmployeePage() {
                 const [deptRes, gradeRes, empRes] = await Promise.all([
                     api.get('/departments').catch(() => ({ data: { success: true, data: [] } })),
                     api.get('/grades').catch(() => ({ data: { success: true, data: [] } })),
-                    api.get('/employees').catch(() => ({ data: { success: true, data: [] } }))
+                    api.get('/employees').catch(() => ({ data: { success: true, data: [] } })),
                 ]);
 
                 if (deptRes.data.success) setDepartments(deptRes.data.data);
@@ -80,7 +95,10 @@ export default function EditEmployeePage() {
                             hireDate: emp.hireDate ? new Date(emp.hireDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                             status: emp.status || 'ACTIVE',
                             managerId: emp.managerId || '',
+                            orgLevelId: emp.orgLevelId || '',
+                            photo: emp.photo || '',
                         });
+                        if (emp.photo) setPhotoPreview(emp.photo);
                     }
                 }
             } catch (error) {
@@ -101,6 +119,7 @@ export default function EditEmployeePage() {
             departmentId: data.departmentId === "" ? undefined : data.departmentId,
             managerId: data.managerId === "" ? undefined : data.managerId,
             gradeId: data.gradeId === "" ? undefined : data.gradeId,
+            orgLevelId: data.orgLevelId === "" ? undefined : data.orgLevelId,
         };
 
         try {
@@ -157,15 +176,41 @@ export default function EditEmployeePage() {
                                 <div className="h-10 w-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-600"><UserIcon className="h-5 w-5" /></div>
                                 <div><h2 className="text-lg font-bold text-slate-900">{t('identityContact')}</h2><p className="text-xs text-slate-500 font-medium">{t('personalInfo')}</p></div>
                             </div>
-                            <CardContent className="p-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                            <CardContent className="p-6 space-y-6">
+                                {/* Photo upload */}
+                                <div className="flex items-center gap-5">
+                                    <div className="relative group">
+                                        {photoPreview ? (
+                                            <img src={photoPreview} alt="Photo" className="h-20 w-20 rounded-full object-cover border-2 border-blue-200 shadow-sm" />
+                                        ) : (
+                                            <div className="h-20 w-20 rounded-full bg-slate-100 border-2 border-dashed border-slate-300 flex items-center justify-center">
+                                                <Camera className="h-6 w-6 text-slate-400" />
+                                            </div>
+                                        )}
+                                        {photoPreview && (
+                                            <button type="button" onClick={() => { setPhotoPreview(null); methods.setValue('photo', null); }} className="absolute -top-1 -right-1 h-5 w-5 rounded-full bg-red-500 text-white flex items-center justify-center shadow-sm hover:bg-red-600">
+                                                <X className="h-3 w-3" />
+                                            </button>
+                                        )}
+                                    </div>
+                                    <div>
+                                        <button type="button" onClick={() => photoInputRef.current?.click()} className="text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors">
+                                            {photoPreview ? t('changePhoto') : t('addPhoto')}
+                                        </button>
+                                        <p className="text-xs text-slate-400 mt-0.5">PNG, JPG — max 500 Ko</p>
+                                        <input ref={photoInputRef} type="file" accept="image/png,image/jpeg,image/webp" onChange={handlePhotoChange} className="hidden" />
+                                    </div>
+                                </div>
+
+                                <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
                                 <div className="space-y-2">
                                     <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('firstNameLabel')}</Label>
-                                    <Input placeholder="Ahmed" {...register('firstName')} className={`h-11 bg-slate-50 ${errors.firstName ? 'border-red-500' : ''}`} />
+                                    <Input placeholder={t('firstNamePlaceholder')} {...register('firstName')} className={`h-11 bg-slate-50 ${errors.firstName ? 'border-red-500' : ''}`} />
                                     {errors.firstName && <p className="text-xs text-red-500 font-medium">{errors.firstName.message}</p>}
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('lastNameLabel')}</Label>
-                                    <Input placeholder="Sidi" {...register('lastName')} className={`h-11 bg-slate-50 ${errors.lastName ? 'border-red-500' : ''}`} />
+                                    <Input placeholder={t('lastNamePlaceholder')} {...register('lastName')} className={`h-11 bg-slate-50 ${errors.lastName ? 'border-red-500' : ''}`} />
                                     {errors.lastName && <p className="text-xs text-red-500 font-medium">{errors.lastName.message}</p>}
                                 </div>
                                 <div className="space-y-2">
@@ -174,7 +219,7 @@ export default function EditEmployeePage() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('professionalEmail')}</Label>
-                                    <Input type="email" placeholder="ahmed@harmony.mr" {...register('email')} className="h-11 bg-slate-50" />
+                                    <Input type="email" placeholder={t('emailPlaceholder')} {...register('email')} className="h-11 bg-slate-50" />
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('phoneLabel')}</Label>
@@ -183,8 +228,9 @@ export default function EditEmployeePage() {
                                 </div>
                                 <div className="space-y-2">
                                     <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('nniPassport')}</Label>
-                                    <Input placeholder="NNI ou Ptr" {...register('cin')} className={`h-11 bg-slate-50 ${errors.cin ? 'border-red-500' : ''}`} />
+                                    <Input placeholder={t('cinPlaceholder')} {...register('cin')} className={`h-11 bg-slate-50 ${errors.cin ? 'border-red-500' : ''}`} />
                                     {errors.cin && <p className="text-xs text-red-500 font-medium">{errors.cin.message}</p>}
+                                </div>
                                 </div>
                             </CardContent>
                         </Card>
@@ -197,38 +243,62 @@ export default function EditEmployeePage() {
                                 <div className="h-10 w-10 rounded-xl bg-purple-100 flex items-center justify-center text-purple-600"><Briefcase className="h-5 w-5" /></div>
                                 <div><h2 className="text-lg font-bold text-slate-900">{t('positionDeployment')}</h2><p className="text-xs text-slate-500 font-medium">{t('hierarchicalAssignment')}</p></div>
                             </div>
-                            <CardContent className="p-6 grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                <div className="space-y-2 lg:col-span-2">
-                                    <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('positionTitle')}</Label>
-                                    <Input placeholder="ex: Développeur Fullstack" {...register('position')} className={`h-11 bg-slate-50 ${errors.position ? 'border-red-500' : ''}`} />
-                                    {errors.position && <p className="text-xs text-red-500 font-medium">{errors.position.message}</p>}
+                            <CardContent className="p-6 space-y-6">
+                                <div className="grid sm:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('positionTitle')}</Label>
+                                        <Input placeholder="ex: Développeur Fullstack" {...register('position')} className={`h-11 bg-slate-50 ${errors.position ? 'border-red-500' : ''}`} />
+                                        {errors.position && <p className="text-xs text-red-500 font-medium">{errors.position.message}</p>}
+                                    </div>
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('gradeLevel')}</Label>
+                                        <select {...register('gradeId')} className="w-full h-11 rounded-xl border border-input bg-slate-50 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                            <option value="">{t('noGradeOption')}</option>
+                                            {grades.sort((a, b) => b.level - a.level).map(grade => (
+                                                <option key={grade.id} value={grade.id}>{grade.name} (Lvl {grade.level})</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('departmentLabel')}</Label>
-                                    <select {...register('departmentId')} className="w-full h-11 rounded-xl border border-input bg-slate-50 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                                        <option value="">{t('notAssignedOption')}</option>
-                                        {departments.map(dept => (
-                                            <option key={dept.id} value={dept.id}>{dept.name}</option>
-                                        ))}
-                                    </select>
+
+                                {/* Affectation */}
+                                <div className="grid sm:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('departmentLabel')}</Label>
+                                        <select {...register('departmentId')} className="w-full h-11 rounded-xl border border-input bg-slate-50 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                            <option value="">{t('notAssignedOption')}</option>
+                                            {(() => {
+                                                const grouped = new Map<string, any[]>();
+                                                for (const dept of departments) {
+                                                    const key = dept.orgLevel?.name || '';
+                                                    if (!grouped.has(key)) grouped.set(key, []);
+                                                    grouped.get(key)!.push(dept);
+                                                }
+                                                const entries = Array.from(grouped.entries()).sort(([, a], [, b]) => (a[0]?.orgLevel?.rank ?? 999) - (b[0]?.orgLevel?.rank ?? 999));
+                                                return entries.map(([levelName, depts]) => (
+                                                    <optgroup key={levelName || 'other'} label={levelName || '—'}>
+                                                        {depts.map(dept => (
+                                                            <option key={dept.id} value={dept.id}>
+                                                                {dept.parent ? `${dept.parent.name} → ` : ''}{dept.name}
+                                                            </option>
+                                                        ))}
+                                                    </optgroup>
+                                                ));
+                                            })()}
+                                        </select>
+                                    </div>
                                 </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('gradeLevel')}</Label>
-                                    <select {...register('gradeId')} className="w-full h-11 rounded-xl border border-input bg-slate-50 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                                        <option value="">{t('noGradeOption')}</option>
-                                        {grades.sort((a, b) => b.level - a.level).map(grade => (
-                                            <option key={grade.id} value={grade.id}>{grade.name} (Lvl {grade.level})</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                <div className="space-y-2">
-                                    <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('directManager')}</Label>
-                                    <select {...register('managerId')} className="w-full h-11 rounded-xl border border-input bg-slate-50 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
-                                        <option value="">{t('noManagerOption')}</option>
-                                        {employees.map(emp => (
-                                            <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName}</option>
-                                        ))}
-                                    </select>
+
+                                <div className="grid sm:grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <Label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('directManager')}</Label>
+                                        <select {...register('managerId')} className="w-full h-11 rounded-xl border border-input bg-slate-50 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
+                                            <option value="">{t('noManagerOption')}</option>
+                                            {employees.filter(emp => emp.id !== employeeId).map(emp => (
+                                                <option key={emp.id} value={emp.id}>{emp.firstName} {emp.lastName} — {emp.position}</option>
+                                            ))}
+                                        </select>
+                                    </div>
                                 </div>
                             </CardContent>
                         </Card>

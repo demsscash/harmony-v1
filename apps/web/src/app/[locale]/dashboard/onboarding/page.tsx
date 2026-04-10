@@ -199,7 +199,7 @@ export default function OnboardingPage() {
                         <div className="space-y-1.5">
                             <Label>{t('templateName')} <span className="text-red-500">*</span></Label>
                             <Input
-                                placeholder="Ex : Onboarding CDI Standard"
+                                placeholder={t('templateNamePlaceholder')}
                                 value={form.name}
                                 onChange={e => setForm(p => ({ ...p, name: e.target.value }))}
                             />
@@ -224,7 +224,7 @@ export default function OnboardingPage() {
                                                 <div className="flex-1 space-y-1.5">
                                                     <Label className="text-xs">{t('taskTitle')} <span className="text-red-500">*</span></Label>
                                                     <Input
-                                                        placeholder="Ex : Configurer le poste de travail"
+                                                        placeholder={t('taskTitlePlaceholder')}
                                                         value={task.title}
                                                         onChange={e => updateTask(idx, 'title', e.target.value)}
                                                         className="h-9 text-sm"

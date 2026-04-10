@@ -365,7 +365,7 @@ export default function GradesPage() {
                             <div className="space-y-1.5 col-span-2 sm:col-span-1">
                                 <Label>{t('gradeName')} <span className="text-red-500">*</span></Label>
                                 <Input
-                                    placeholder="Ex : Cadre Senior"
+                                    placeholder={t('gradeNamePlaceholder')}
                                     value={gradeForm.name}
                                     onChange={e => setGradeForm(p => ({ ...p, name: e.target.value }))}
                                 />
@@ -451,7 +451,7 @@ export default function GradesPage() {
                     <div className="space-y-4 py-2">
                         <div className="space-y-1.5">
                             <Label>{t('nameCol')} <span className="text-red-500">*</span></Label>
-                            <Input placeholder="Ex : Prime de transport" value={advForm.name} onChange={e => setAdvForm(p => ({ ...p, name: e.target.value }))} />
+                            <Input placeholder={t('advNamePlaceholder')} value={advForm.name} onChange={e => setAdvForm(p => ({ ...p, name: e.target.value }))} />
                         </div>
                         <div className="grid grid-cols-2 gap-4">
                             <div className="space-y-1.5">

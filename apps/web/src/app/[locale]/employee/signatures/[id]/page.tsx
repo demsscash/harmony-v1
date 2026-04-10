@@ -257,11 +257,11 @@ export default function EmployeeSignatureDetailPage() {
                     {/* Document actions */}
                     <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
                         <Button variant="outline" onClick={handlePreviewPdf} className="gap-2">
-                            <Eye className="h-4 w-4" /> Voir le document
+                            <Eye className="h-4 w-4" /> {t('viewDocument')}
                         </Button>
                         {request.status === 'SIGNED' && (
                             <Button onClick={handleDownloadSignedPdf} className="gap-2 bg-emerald-600 hover:bg-emerald-700">
-                                <Download className="h-4 w-4" /> Télécharger le PDF signé
+                                <Download className="h-4 w-4" /> {t('downloadSignedPdf')}
                             </Button>
                         )}
                     </div>
@@ -273,14 +273,14 @@ export default function EmployeeSignatureDetailPage() {
                 <Card className="border-slate-200/60 shadow-sm">
                     <CardHeader className="border-b border-slate-100 pb-3 flex flex-row items-center justify-between">
                         <CardTitle className="text-base flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-blue-600" /> Aperçu du document
+                            <FileText className="h-4 w-4 text-blue-600" /> {t('documentPreview')}
                         </CardTitle>
                         <Button variant="ghost" size="sm" onClick={() => setShowPdfPreview(false)}>
                             <XCircle className="h-4 w-4" />
                         </Button>
                     </CardHeader>
                     <CardContent className="p-0">
-                        <iframe src={pdfUrl} className="w-full border-0 rounded-b-lg" style={{ height: '600px' }} title="Document PDF" />
+                        <iframe src={pdfUrl} className="w-full border-0 rounded-b-lg" style={{ height: '600px' }} title={t('pdfDocument')} />
                     </CardContent>
                 </Card>
             )}

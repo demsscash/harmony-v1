@@ -21,6 +21,8 @@ const employeeBaseSchema = z.object({
     currency: z.nativeEnum(Currency).optional(),
     status: z.nativeEnum(EmployeeStatus).optional(),
     managerId: z.union([z.string().uuid(), z.literal('')]).optional().nullable(),
+    orgLevelId: z.union([z.string().uuid(), z.literal('')]).optional().nullable(),
+    photo: z.string().optional().nullable(),
 });
 
 export const createEmployeeSchema = employeeBaseSchema.refine(data => {

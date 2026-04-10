@@ -9,6 +9,11 @@ interface TablePaginationProps {
     onPageChange: (page: number) => void;
     onPageSizeChange?: (size: number) => void;
     pageSizeOptions?: number[];
+    texts?: {
+        showing?: string;
+        of?: string;
+        rows?: string;
+    };
 }
 
 export function TablePagination({
@@ -18,6 +23,7 @@ export function TablePagination({
     onPageChange,
     onPageSizeChange,
     pageSizeOptions = [10, 15, 25, 50],
+    texts,
 }: TablePaginationProps) {
     const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
     const start = Math.min((page - 1) * pageSize + 1, totalItems);
@@ -28,7 +34,7 @@ export function TablePagination({
     return (
         <div className="flex items-center justify-between px-5 py-3 border-t border-slate-100 bg-slate-50/50 text-xs text-slate-500">
             <div className="flex items-center gap-2">
-                <span>Affichage {start}–{end} sur {totalItems} lignes</span>
+                <span>{texts?.showing || 'Showing'} {start}–{end} {texts?.of || 'of'} {totalItems} {texts?.rows || 'rows'}</span>
                 {onPageSizeChange && (
                     <select
                         value={pageSize}

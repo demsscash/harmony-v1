@@ -14,11 +14,19 @@ interface ContractTemplate {
 }
 
 // Helper to build template with variable replacement
+// Lines where the variable is empty are removed entirely
 function replaceVars(text: string, vars: Record<string, string>): string {
     let result = text;
     for (const [key, value] of Object.entries(vars)) {
-        result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+        if (value) {
+            result = result.replace(new RegExp(`{{${key}}}`, 'g'), value);
+        } else {
+            // Remove entire lines that only contain this empty variable
+            result = result.replace(new RegExp(`^.*{{${key}}}.*$\\n?`, 'gm'), '');
+        }
     }
+    // Clean up multiple consecutive empty lines
+    result = result.replace(/\n{3,}/g, '\n\n');
     return result;
 }
 
@@ -31,16 +39,22 @@ export function getCDITemplate(vars: Record<string, string>): ContractTemplate {
 
 Et
 
-M./Mme {{EMPLOYEE_NAME}}, ci-après dénommé(e) « le Salarié »,
+{{GENDER_PREFIX}} {{EMPLOYEE_NAME}}, ci-après dénommé(e) « le Salarié »,
+{{DOB_LINE}}
 {{CIN_LINE}}
 {{ADDRESS_LINE}}
+{{PHONE_LINE}}
+{{EMAIL_LINE}}
 
 Il a été convenu et arrêté ce qui suit, conformément aux dispositions du Code du Travail mauritanien (Loi n°2004-017) :`, vars),
 
         articles: [
             {
                 title: 'Article 1 — Engagement et Fonction',
-                content: replaceVars(`L'Employeur engage le Salarié en qualité de {{POSITION}}{{DEPARTMENT_LINE}}.
+                content: replaceVars(`L'Employeur engage le Salarié, matricule {{MATRICULE}}, en qualité de {{POSITION}}{{DEPARTMENT_LINE}}.
+{{ORG_LEVEL_LINE}}
+{{MANAGER_LINE}}
+{{GRADE_LINE}}
 
 Le Salarié exercera ses fonctions conformément aux instructions et directives de sa hiérarchie, dans le respect du règlement intérieur de l'entreprise. Il pourra être amené à effectuer toute tâche connexe relevant de sa qualification professionnelle.`, vars),
             },
@@ -116,16 +130,22 @@ export function getCDDTemplate(vars: Record<string, string>): ContractTemplate {
 
 Et
 
-M./Mme {{EMPLOYEE_NAME}}, ci-après dénommé(e) « le Salarié »,
+{{GENDER_PREFIX}} {{EMPLOYEE_NAME}}, ci-après dénommé(e) « le Salarié »,
+{{DOB_LINE}}
 {{CIN_LINE}}
 {{ADDRESS_LINE}}
+{{PHONE_LINE}}
+{{EMAIL_LINE}}
 
 Il a été convenu et arrêté ce qui suit, conformément aux dispositions du Code du Travail mauritanien (Loi n°2004-017) et notamment ses articles 16 à 19 relatifs aux contrats à durée déterminée :`, vars),
 
         articles: [
             {
                 title: 'Article 1 — Objet et Motif du Contrat',
-                content: replaceVars(`L'Employeur engage le Salarié en qualité de {{POSITION}}{{DEPARTMENT_LINE}}.
+                content: replaceVars(`L'Employeur engage le Salarié, matricule {{MATRICULE}}, en qualité de {{POSITION}}{{DEPARTMENT_LINE}}.
+{{ORG_LEVEL_LINE}}
+{{MANAGER_LINE}}
+{{GRADE_LINE}}
 
 Le présent contrat à durée déterminée est conclu pour le motif suivant : {{CDD_REASON}}. Conformément à l'article 16 du Code du Travail, ce contrat est établi par écrit et précise son motif.`, vars),
             },
@@ -192,16 +212,21 @@ export function getStageTemplate(vars: Record<string, string>): ContractTemplate
 
 Et
 
-M./Mme {{EMPLOYEE_NAME}}, ci-après dénommé(e) « le Stagiaire »,
+{{GENDER_PREFIX}} {{EMPLOYEE_NAME}}, ci-après dénommé(e) « le Stagiaire »,
+{{DOB_LINE}}
 {{CIN_LINE}}
 {{ADDRESS_LINE}}
+{{PHONE_LINE}}
+{{EMAIL_LINE}}
 
 Il a été convenu ce qui suit :`, vars),
 
         articles: [
             {
                 title: 'Article 1 — Objet du Stage',
-                content: replaceVars(`L'Organisme d'Accueil accueille le Stagiaire pour un stage en qualité de {{POSITION}}{{DEPARTMENT_LINE}}.
+                content: replaceVars(`L'Organisme d'Accueil accueille le Stagiaire, matricule {{MATRICULE}}, pour un stage en qualité de {{POSITION}}{{DEPARTMENT_LINE}}.
+{{ORG_LEVEL_LINE}}
+{{MANAGER_LINE}}
 
 Ce stage a pour objectif de permettre au Stagiaire d'acquérir une expérience pratique et de compléter sa formation théorique par une immersion professionnelle.`, vars),
             },
@@ -263,9 +288,12 @@ export function getPrestationTemplate(vars: Record<string, string>): ContractTem
 
 Et
 
-M./Mme {{EMPLOYEE_NAME}}, ci-après dénommé(e) « le Prestataire »,
+{{GENDER_PREFIX}} {{EMPLOYEE_NAME}}, ci-après dénommé(e) « le Prestataire »,
+{{DOB_LINE}}
 {{CIN_LINE}}
 {{ADDRESS_LINE}}
+{{PHONE_LINE}}
+{{EMAIL_LINE}}
 
 Il a été convenu ce qui suit :`, vars),
 
@@ -273,6 +301,7 @@ Il a été convenu ce qui suit :`, vars),
             {
                 title: 'Article 1 — Objet de la Prestation',
                 content: replaceVars(`Le Client confie au Prestataire, qui accepte, l'exécution de missions en qualité de {{POSITION}}{{DEPARTMENT_LINE}}.
+{{ORG_LEVEL_LINE}}
 
 Les missions détaillées, livrables attendus et indicateurs de performance seront précisés dans des ordres de mission annexés au présent contrat.`, vars),
             },

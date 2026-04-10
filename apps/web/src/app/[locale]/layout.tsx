@@ -1,4 +1,4 @@
-import { Plus_Jakarta_Sans, Outfit, Noto_Sans_Arabic } from "next/font/google";
+import { Plus_Jakarta_Sans, Outfit, Noto_Sans_Arabic, Noto_Sans_SC } from "next/font/google";
 import { NextIntlClientProvider } from 'next-intl';
 import { getMessages, setRequestLocale } from 'next-intl/server';
 import { notFound } from 'next/navigation';
@@ -24,6 +24,12 @@ const notoArabic = Noto_Sans_Arabic({
   weight: ["400", "500", "600", "700"],
 });
 
+const notoSC = Noto_Sans_SC({
+  variable: "--font-chinese",
+  subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
+});
+
 export default async function LocaleLayout({
   children,
   params,
@@ -39,6 +45,8 @@ export default async function LocaleLayout({
   const dir = locale === 'ar' ? 'rtl' : 'ltr';
   const fontClass = locale === 'ar'
     ? `${notoArabic.variable} ${plusJakarta.variable} ${outfit.variable}`
+    : locale === 'zh'
+    ? `${notoSC.variable} ${plusJakarta.variable} ${outfit.variable}`
     : `${plusJakarta.variable} ${outfit.variable}`;
 
   return (
@@ -52,7 +60,7 @@ export default async function LocaleLayout({
               richColors
               closeButton
               toastOptions={{
-                style: { fontFamily: locale === 'ar' ? 'var(--font-arabic)' : 'var(--font-sans)' },
+                style: { fontFamily: locale === 'ar' ? 'var(--font-arabic)' : locale === 'zh' ? 'var(--font-chinese)' : 'var(--font-sans)' },
               }}
             />
           </AuthProvider>

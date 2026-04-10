@@ -6,7 +6,9 @@ import {
     updateEmployee,
     downloadEmployeeBadge,
     downloadEmployeeContract,
-    createEmployeeAccount
+    createEmployeeAccount,
+    terminateEmployee,
+    reinstateEmployee,
 } from '../controllers/employee.controller';
 import { generateAttestationPdf } from '../services/pdf.service';
 import { validate } from '../middleware/validate';
@@ -94,6 +96,8 @@ router.get('/:id/attestation', requireRole([UserRole.ADMIN, UserRole.HR, UserRol
 });
 
 router.post('/:id/create-account', requireRole([UserRole.ADMIN, UserRole.HR]), createEmployeeAccount);
+router.post('/:id/terminate', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'TERMINATE_EMPLOYEE', resource: 'Employee' }), terminateEmployee);
+router.post('/:id/reinstate', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'REINSTATE_EMPLOYEE', resource: 'Employee' }), reinstateEmployee);
 
 // Onboarding nested routes
 router.use('/:id/onboarding', employeeOnboardingRouter);

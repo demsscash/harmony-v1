@@ -6,8 +6,17 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
 import {
+    Dialog,
+    DialogContent,
+    DialogHeader,
+    DialogTitle,
+    DialogDescription,
+    DialogFooter,
+} from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import {
     Banknote, PlayCircle, Loader2, FileText,
-    CheckCircle2, Calendar
+    CheckCircle2, Calendar, Edit, Trash2, RefreshCw
 } from 'lucide-react';
 import Link from 'next/link';
 import { useTranslations } from 'next-intl';
@@ -41,6 +50,15 @@ export default function PayrollPage() {
     const [generating, setGenerating] = React.useState(false);
     const [selectedMonth, setSelectedMonth] = React.useState(new Date().getMonth() + 1);
     const [selectedYear, setSelectedYear] = React.useState(new Date().getFullYear());
+
+    // Edit dialog
+    const [editPayroll, setEditPayroll] = React.useState<Payroll | null>(null);
+    const [editMonth, setEditMonth] = React.useState(1);
+    const [editYear, setEditYear] = React.useState(2025);
+    const [saving, setSaving] = React.useState(false);
+
+    // Delete dialog
+    const [deleteId, setDeleteId] = React.useState<string | null>(null);
 
     const fetchPayrolls = async () => {
         try {
@@ -83,6 +101,55 @@ export default function PayrollPage() {
             fetchPayrolls();
         } catch (e: any) {
             toast.error(e.response?.data?.error || tc('error'));
+        }
+    };
+
+    const [regeneratingId, setRegeneratingId] = React.useState<string | null>(null);
+
+    const handleRegenerate = async (id: string) => {
+        setRegeneratingId(id);
+        try {
+            await api.post(`/payrolls/${id}/generate`);
+            toast.success(t('regenerateSuccess'));
+            fetchPayrolls();
+        } catch (e: any) {
+            toast.error(e.response?.data?.error || tc('error'));
+        } finally {
+            setRegeneratingId(null);
+        }
+    };
+
+    const openEdit = (p: Payroll) => {
+        setEditPayroll(p);
+        setEditMonth(p.month);
+        setEditYear(p.year);
+    };
+
+    const handleUpdate = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!editPayroll) return;
+        setSaving(true);
+        try {
+            await api.put(`/payrolls/${editPayroll.id}`, { month: editMonth, year: editYear });
+            toast.success(t('updateSuccess'));
+            setEditPayroll(null);
+            fetchPayrolls();
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || tc('error'));
+        } finally {
+            setSaving(false);
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!deleteId) return;
+        try {
+            await api.delete(`/payrolls/${deleteId}`);
+            toast.success(t('deleteSuccess'));
+            setDeleteId(null);
+            fetchPayrolls();
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || tc('error'));
         }
     };
 
@@ -162,12 +229,40 @@ export default function PayrollPage() {
             render: (p) => (
                 <div className="flex gap-1.5 justify-end">
                     {p.status === 'DRAFT' && (
-                        <button
-                            onClick={(e) => { e.stopPropagation(); handleValidate(p.id); }}
-                            className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200 transition-colors"
-                        >
-                            <CheckCircle2 className="h-3 w-3 inline mr-1" />{` `}{t('validate')}
-                        </button>
+                        <>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleRegenerate(p.id); }}
+                                disabled={regeneratingId === p.id}
+                                className="px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 border border-emerald-200 transition-colors disabled:opacity-50"
+                                title={t('regenerate')}
+                            >
+                                {regeneratingId === p.id
+                                    ? <Loader2 className="h-3 w-3 inline mr-1 animate-spin" />
+                                    : <RefreshCw className="h-3 w-3 inline mr-1" />
+                                }
+                                {t('regenerate')}
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); handleValidate(p.id); }}
+                                className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-100 text-blue-700 hover:bg-blue-200 border border-blue-200 transition-colors"
+                            >
+                                <CheckCircle2 className="h-3 w-3 inline mr-1" />{` `}{t('validate')}
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); openEdit(p); }}
+                                className="px-2 py-1 rounded-lg text-xs font-bold bg-amber-50 text-amber-700 hover:bg-amber-100 border border-amber-200 transition-colors"
+                                title={t('editCampaign')}
+                            >
+                                <Edit className="h-3 w-3" />
+                            </button>
+                            <button
+                                onClick={(e) => { e.stopPropagation(); setDeleteId(p.id); }}
+                                className="px-2 py-1 rounded-lg text-xs font-bold bg-red-50 text-red-600 hover:bg-red-100 border border-red-200 transition-colors"
+                                title={t('deleteCampaign')}
+                            >
+                                <Trash2 className="h-3 w-3" />
+                            </button>
+                        </>
                     )}
                     <Link href={`/dashboard/payroll/${p.id}`}>
                         <button className="px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 text-slate-600 hover:bg-slate-200 border border-slate-200 transition-colors">
@@ -270,6 +365,60 @@ export default function PayrollPage() {
                     rows: tc('rows'),
                 }}
             />
+
+            {/* Edit Dialog */}
+            <Dialog open={!!editPayroll} onOpenChange={(open) => { if (!open) setEditPayroll(null); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{t('editCampaign')}</DialogTitle>
+                        <DialogDescription>{t('regenerateHint')}</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleUpdate} className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label>{t('editMonth')}</Label>
+                                <select
+                                    value={editMonth}
+                                    onChange={e => setEditMonth(Number(e.target.value))}
+                                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none shadow-sm"
+                                >
+                                    {MONTH_KEYS.map((m, i) => <option key={i} value={i + 1}>{tm(m)}</option>)}
+                                </select>
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label>{t('editYear')}</Label>
+                                <select
+                                    value={editYear}
+                                    onChange={e => setEditYear(Number(e.target.value))}
+                                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none shadow-sm"
+                                >
+                                    {[2024, 2025, 2026, 2027].map(y => <option key={y} value={y}>{y}</option>)}
+                                </select>
+                            </div>
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setEditPayroll(null)}>{tc('cancel')}</Button>
+                            <Button type="submit" disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
+                                {saving ? tc('loading') : tc('save')}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
+
+            {/* Delete Dialog */}
+            <Dialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{t('deleteCampaign')}</DialogTitle>
+                        <DialogDescription>{t('deleteConfirm')}</DialogDescription>
+                    </DialogHeader>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setDeleteId(null)}>{tc('cancel')}</Button>
+                        <Button variant="destructive" onClick={handleDelete}>{tc('delete')}</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

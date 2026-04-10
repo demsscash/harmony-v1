@@ -41,6 +41,25 @@ export const createPayroll = async (req: Request, res: Response) => {
     }
 };
 
+export const updatePayroll = async (req: Request, res: Response) => {
+    try {
+        const tenantId = req.tenant?.id!;
+        const { month, year } = req.body;
+        const payroll = await PayrollService.update(String(req.params.id), tenantId, { month, year });
+        res.json({ success: true, data: payroll });
+    } catch (error: any) {
+        if (error.message.includes('introuvable')) {
+            res.status(404).json({ success: false, error: error.message });
+            return;
+        }
+        if (error.message.includes('existe déjà') || error.message.includes('non brouillon')) {
+            res.status(400).json({ success: false, error: error.message });
+            return;
+        }
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
 export const updatePayrollStatus = async (req: Request, res: Response) => {
     try {
         const tenantId = req.tenant?.id!;

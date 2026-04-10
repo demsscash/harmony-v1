@@ -18,9 +18,11 @@ interface AuthState {
     token: string | null;
     isAuthenticated: boolean;
     tenantLogo: string | null; // base64 data URL for the company logo
+    tenantName: string; // company name for the navbar
     loginState: (user: AuthUser, token: string) => void;
     logoutState: () => void;
     setTenantLogo: (logo: string | null) => void;
+    setTenantName: (name: string) => void;
 }
 
 export const useAuthStore = create<AuthState>()(
@@ -30,17 +32,22 @@ export const useAuthStore = create<AuthState>()(
             token: null,
             isAuthenticated: false,
             tenantLogo: null,
+            tenantName: 'Harmony',
 
             loginState: (user, token) => {
                 set({ user, token, isAuthenticated: true });
             },
 
             logoutState: () => {
-                set({ user: null, token: null, isAuthenticated: false, tenantLogo: null });
+                set({ user: null, token: null, isAuthenticated: false, tenantLogo: null, tenantName: 'Harmony' });
             },
 
             setTenantLogo: (logo) => {
                 set({ tenantLogo: logo });
+            },
+
+            setTenantName: (name) => {
+                set({ tenantName: name });
             },
         }),
         {

@@ -4,9 +4,9 @@ import jwt from 'jsonwebtoken';
 
 const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET!;
-const JWT_EXPIRES_IN = '15m';
+const JWT_EXPIRES_IN = '1h';
 const REFRESH_SECRET = process.env.JWT_REFRESH_SECRET!;
-const REFRESH_EXPIRES_IN = '7d';
+const REFRESH_EXPIRES_IN = '30d';
 
 export class AuthService {
     static async login(identifier: string, password: string, tenantId: string) {

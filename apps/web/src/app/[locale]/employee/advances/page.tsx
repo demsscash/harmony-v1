@@ -140,7 +140,7 @@ export default function EmployeeAdvancesPage() {
                     <CardContent className="flex flex-col items-center justify-center py-16 text-slate-400">
                         <Wallet className="h-12 w-12 mb-3 text-slate-200" />
                         <p className="font-medium">{t('noAdvances')}</p>
-                        <p className="text-sm mt-1">Cliquez sur le bouton pour faire votre première demande</p>
+                        <p className="text-sm mt-1">{t('clickToMakeFirstRequest')}</p>
                     </CardContent>
                 </Card>
             ) : (
@@ -219,7 +219,7 @@ export default function EmployeeAdvancesPage() {
                             <Textarea
                                 value={reason}
                                 onChange={(e) => setReason(e.target.value)}
-                                placeholder="Raison de la demande (optionnel)"
+                                placeholder={t('reasonPlaceholder')}
                                 className="mt-1"
                                 rows={3}
                             />

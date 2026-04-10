@@ -8,15 +8,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { isAuthenticated, user } = useAuthStore();
     const router = useRouter();
     const pathname = usePathname();
-    const [hasMounted, setHasMounted] = React.useState(false);
+    const [hasHydrated, setHasHydrated] = React.useState(false);
 
-    // Wait for client-side hydration before checking auth state
+    // Wait for Zustand persist to rehydrate from localStorage
     React.useEffect(() => {
-        setHasMounted(true);
+        const unsub = useAuthStore.persist.onFinishHydration(() => {
+            setHasHydrated(true);
+        });
+        // If already hydrated (fast path)
+        if (useAuthStore.persist.hasHydrated()) {
+            setHasHydrated(true);
+        }
+        return () => unsub();
     }, []);
 
     React.useEffect(() => {
-        if (!hasMounted) return;
+        if (!hasHydrated) return;
 
         const publicPages = ['/login', '/forgot-password', '/reset-password'];
         const isPublicPage = publicPages.some(p => pathname.startsWith(p));
@@ -40,7 +47,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         if (isAuthenticated && user?.role !== 'EMPLOYEE' && pathname.startsWith('/employee')) {
             router.push('/dashboard');
         }
-    }, [isAuthenticated, user, pathname, router, hasMounted]);
+    }, [isAuthenticated, user, pathname, router, hasHydrated]);
+
+    // Block rendering until Zustand has rehydrated — prevents flash of protected content
+    const publicPages = ['/login', '/forgot-password', '/reset-password'];
+    const isPublicPage = publicPages.some(p => pathname.startsWith(p));
+
+    if (!hasHydrated && !isPublicPage) {
+        return (
+            <div className="min-h-screen w-full bg-[#F8FAFC] flex items-center justify-center">
+                <div className="h-8 w-8 rounded-lg bg-blue-600 animate-pulse" />
+            </div>
+        );
+    }
 
     return <>{children}</>;
 }

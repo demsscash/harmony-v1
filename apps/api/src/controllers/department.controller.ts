@@ -10,10 +10,12 @@ export const getDepartments = async (req: Request, res: Response) => {
             where: { tenantId },
             include: {
                 _count: {
-                    select: { employees: true }
-                }
+                    select: { employees: true, children: true }
+                },
+                orgLevel: { select: { id: true, name: true, rank: true } },
+                parent: { select: { id: true, name: true } },
             },
-            orderBy: { name: 'asc' }
+            orderBy: [{ orgLevel: { rank: 'asc' } }, { name: 'asc' }]
         });
 
         // Manually fetch managers since the relation is one-way from Employee to Department
@@ -39,7 +41,7 @@ export const getDepartments = async (req: Request, res: Response) => {
 export const createDepartment = async (req: Request, res: Response) => {
     try {
         const tenantId = req.tenant?.id!;
-        const { name, description, managerId } = req.body;
+        const { name, description, managerId, parentId, orgLevelId } = req.body;
 
         const existing = await prisma.department.findFirst({
             where: { tenantId, name }
@@ -54,7 +56,9 @@ export const createDepartment = async (req: Request, res: Response) => {
                 tenantId,
                 name,
                 description,
-                managerId: managerId || null
+                managerId: managerId || null,
+                parentId: parentId || null,
+                orgLevelId: orgLevelId || null,
             }
         });
 
@@ -77,7 +81,7 @@ export const updateDepartment = async (req: Request, res: Response) => {
     try {
         const tenantId = req.tenant?.id!;
         const id = req.params.id as string;
-        const { name, description, managerId } = req.body;
+        const { name, description, managerId, parentId, orgLevelId } = req.body;
 
         if (name) {
             const existing = await prisma.department.findFirst({
@@ -102,7 +106,9 @@ export const updateDepartment = async (req: Request, res: Response) => {
             data: {
                 name,
                 description,
-                managerId: managerId === "" ? null : managerId
+                managerId: managerId === "" ? null : managerId,
+                parentId: parentId === "" ? null : (parentId !== undefined ? parentId : undefined),
+                orgLevelId: orgLevelId === "" ? null : (orgLevelId !== undefined ? orgLevelId : undefined),
             }
         });
 

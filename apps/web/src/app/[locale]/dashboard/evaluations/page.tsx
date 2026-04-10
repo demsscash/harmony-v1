@@ -466,7 +466,7 @@ export default function EvaluationsPage() {
                                             </table>
                                         </div>
                                     )}
-                                    <TablePagination page={page} totalItems={evaluations.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+                                    <TablePagination page={page} totalItems={evaluations.length} pageSize={PAGE_SIZE} onPageChange={setPage} texts={{ showing: tc('showing'), of: tc('of'), rows: tc('rows') }} />
                                 </CardContent>
                             </Card>
                         </div>

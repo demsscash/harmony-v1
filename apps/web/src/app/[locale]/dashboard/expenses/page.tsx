@@ -438,9 +438,9 @@ export default function ExpensesPage() {
                     </>
                 }
                 texts={{
-                    showing: 'Affichage',
-                    of: 'sur',
-                    rows: 'lignes',
+                    showing: t('showing'),
+                    of: t('of'),
+                    rows: t('rows'),
                     noResults: t('noExpenses'),
                 }}
             />
@@ -508,7 +508,7 @@ export default function ExpensesPage() {
                             )}
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-semibold">{t('reportTitle')}</Label>
-                                <Input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder="Déplacement Nouakchott" required />
+                                <Input value={formTitle} onChange={e => setFormTitle(e.target.value)} placeholder={t('titlePlaceholder')} required />
                             </div>
                         </div>
 

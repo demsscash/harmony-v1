@@ -12,14 +12,14 @@ import { motion } from 'framer-motion';
 import { TablePagination, paginate } from '@/components/TablePagination';
 import api from '@/lib/api';
 import { toast } from 'sonner';
-import { useTranslations } from 'next-intl';
+import { useTranslations, useLocale } from 'next-intl';
 
-const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: any; label: string }> = {
-    PRESENT: { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: CheckCircle2, label: 'Présent' },
-    LATE: { color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock, label: 'En retard' },
-    ABSENT: { color: 'text-red-700', bg: 'bg-red-50 border-red-200', icon: XCircle, label: 'Absent' },
-    EARLY_DEPARTURE: { color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200', icon: ArrowDownRight, label: 'Départ anticipé' },
-    LATE_AND_EARLY: { color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200', icon: AlertTriangle, label: 'Retard + Départ' },
+const STATUS_CONFIG: Record<string, { color: string; bg: string; icon: any; labelKey: string }> = {
+    PRESENT: { color: 'text-emerald-700', bg: 'bg-emerald-50 border-emerald-200', icon: CheckCircle2, labelKey: 'present' },
+    LATE: { color: 'text-amber-700', bg: 'bg-amber-50 border-amber-200', icon: Clock, labelKey: 'late' },
+    ABSENT: { color: 'text-red-700', bg: 'bg-red-50 border-red-200', icon: XCircle, labelKey: 'absent' },
+    EARLY_DEPARTURE: { color: 'text-orange-700', bg: 'bg-orange-50 border-orange-200', icon: ArrowDownRight, labelKey: 'earlyDeparture' },
+    LATE_AND_EARLY: { color: 'text-rose-700', bg: 'bg-rose-50 border-rose-200', icon: AlertTriangle, labelKey: 'lateAndEarly' },
 };
 
 type RowDraft = {
@@ -39,6 +39,9 @@ type RowDraft = {
 export default function AttendancePage() {
     const t = useTranslations('attendance');
     const tc = useTranslations('common');
+    const locale = useLocale();
+    const localeMap: Record<string, string> = { fr: 'fr-FR', ar: 'ar-SA', zh: 'zh-CN' };
+    const fmtLocale = localeMap[locale] || 'fr-FR';
 
     const today = new Date().toISOString().slice(0, 10);
     const [selectedDate, setSelectedDate] = React.useState(today);
@@ -168,7 +171,7 @@ export default function AttendancePage() {
     const saveAll = async () => {
         const dirtyRows = rows.filter(r => r.dirty && (r.clockIn || r.clockOut || r.existingId));
         if (dirtyRows.length === 0) {
-            toast.info('Aucune modification à enregistrer');
+            toast.info(t('noChangesToSave'));
             return;
         }
         setBulkSaving(true);
@@ -180,7 +183,7 @@ export default function AttendancePage() {
             } catch { /* individual errors handled in saveRow */ }
         }
         setBulkSaving(false);
-        toast.success(`${saved} pointage(s) enregistré(s)`);
+        toast.success(t('savedCount', { count: saved }));
     };
 
     // Mark absent (no clockIn/clockOut, create record)
@@ -192,9 +195,9 @@ export default function AttendancePage() {
         try {
             let res;
             if (row.existingId) {
-                res = await api.put(`/attendance/${row.existingId}`, { clockIn: null, clockOut: null, note: row.note || 'Absent' });
+                res = await api.put(`/attendance/${row.existingId}`, { clockIn: null, clockOut: null, note: row.note || t('absentNote') });
             } else {
-                res = await api.post('/attendance', { employeeId, date: selectedDate, note: 'Absent' });
+                res = await api.post('/attendance', { employeeId, date: selectedDate, note: t('absentNote') });
             }
             const saved = res.data?.data;
             setRows(prev => prev.map(r => r.employeeId === employeeId ? {
@@ -222,7 +225,7 @@ export default function AttendancePage() {
         setSelectedDate(d.toISOString().slice(0, 10));
     };
 
-    const dateLabel = new Date(selectedDate + 'T00:00:00').toLocaleDateString('fr-FR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+    const dateLabel = new Date(selectedDate + 'T00:00:00').toLocaleDateString(fmtLocale, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
 
     // Summary
     const fetchSummary = async () => {
@@ -237,7 +240,7 @@ export default function AttendancePage() {
 
     // CSV export
     const exportCsv = () => {
-        const headers = ['Employé', 'Matricule', 'Département', 'Arrivée', 'Départ', 'Statut', 'Retard (min)', 'Déduction'];
+        const headers = [t('csvEmployee'), t('csvMatricule'), t('csvDepartment'), t('csvClockIn'), t('csvClockOut'), t('csvStatus'), t('csvLateMin'), t('csvDeduction')];
         const csvRows = rows.filter(r => r.existingId).map(r => {
             const emp = employees.find(e => e.id === r.employeeId);
             return [
@@ -312,11 +315,11 @@ export default function AttendancePage() {
             {/* Day stats */}
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
                 {[
-                    { label: 'Présents', value: dayStats.present, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
-                    { label: 'En retard', value: dayStats.late, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
-                    { label: 'Absents', value: dayStats.absent, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
-                    { label: 'Non saisis', value: dayStats.notRecorded, color: 'text-slate-500', bg: 'bg-slate-50', border: 'border-slate-200' },
-                    { label: 'Déductions', value: `${dayStats.totalDeductions.toLocaleString('fr-FR')} MRU`, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
+                    { label: t('presentCount'), value: dayStats.present, color: 'text-emerald-600', bg: 'bg-emerald-50', border: 'border-emerald-200' },
+                    { label: t('lateCount'), value: dayStats.late, color: 'text-amber-600', bg: 'bg-amber-50', border: 'border-amber-200' },
+                    { label: t('absentCount'), value: dayStats.absent, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
+                    { label: t('notRecorded'), value: dayStats.notRecorded, color: 'text-slate-500', bg: 'bg-slate-50', border: 'border-slate-200' },
+                    { label: t('deductions'), value: `${dayStats.totalDeductions.toLocaleString(fmtLocale)} MRU`, color: 'text-red-600', bg: 'bg-red-50', border: 'border-red-200' },
                 ].map(s => (
                     <div key={s.label} className={`${s.bg} border ${s.border} rounded-xl p-3 text-center shadow-sm`}>
                         <p className="text-[11px] font-medium text-slate-500 uppercase tracking-wider">{s.label}</p>
@@ -351,7 +354,7 @@ export default function AttendancePage() {
                                 type="text"
                                 value={searchText}
                                 onChange={e => setSearchText(e.target.value)}
-                                placeholder="Rechercher..."
+                                placeholder={t('searchPlaceholder')}
                                 className="text-sm border border-slate-200 rounded-lg pl-8 pr-3 py-2 bg-white w-44"
                             />
                         </div>
@@ -374,7 +377,7 @@ export default function AttendancePage() {
                             className="bg-blue-600 hover:bg-blue-700 text-white"
                         >
                             {bulkSaving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Save className="h-4 w-4 mr-1" />}
-                            Enregistrer tout {dirtyCount > 0 && `(${dirtyCount})`}
+                            {t('saveAll')} {dirtyCount > 0 && `(${dirtyCount})`}
                         </Button>
                     </div>
                 </CardContent>
@@ -418,7 +421,7 @@ export default function AttendancePage() {
                                             <td className="py-2.5 text-center text-red-600 font-semibold">{s.absent}</td>
                                             <td className="py-2.5 text-center text-orange-600 font-semibold">{s.earlyDeparture}</td>
                                             <td className="py-2.5 text-center text-slate-600">{s.totalLateMinutes} min</td>
-                                            <td className="py-2.5 text-right font-bold text-red-600">{Number(s.totalDeductions).toLocaleString('fr-FR')} MRU</td>
+                                            <td className="py-2.5 text-right font-bold text-red-600">{Number(s.totalDeductions).toLocaleString(fmtLocale)} MRU</td>
                                         </tr>
                                     ))}
                                 </tbody>
@@ -436,7 +439,7 @@ export default function AttendancePage() {
                     ) : filteredRows.length === 0 ? (
                         <div className="text-center py-16">
                             <Clock className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                            <p className="text-sm text-slate-500">Aucun employé trouvé</p>
+                            <p className="text-sm text-slate-500">{t('noEmployeeFound')}</p>
                         </div>
                     ) : (
                         <table className="w-full text-sm">
@@ -447,9 +450,9 @@ export default function AttendancePage() {
                                     <th scope="col" className="py-3 px-2 font-semibold w-[110px] text-center">{t('clockIn')}</th>
                                     <th scope="col" className="py-3 px-2 font-semibold w-[110px] text-center">{t('clockOut')}</th>
                                     <th scope="col" className="py-3 px-2 font-semibold w-[120px] text-center">{t('status')}</th>
-                                    <th scope="col" className="py-3 px-2 font-semibold w-[80px] text-center">Retard</th>
+                                    <th scope="col" className="py-3 px-2 font-semibold w-[80px] text-center">{t('lateHeader')}</th>
                                     <th scope="col" className="py-3 px-2 font-semibold w-[100px] text-right">{t('deduction')}</th>
-                                    <th scope="col" className="py-3 px-2 font-semibold w-[100px] text-center">Actions</th>
+                                    <th scope="col" className="py-3 px-2 font-semibold w-[100px] text-center">{t('actions')}</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -504,7 +507,7 @@ export default function AttendancePage() {
                                                 {cfg && Icon ? (
                                                     <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold border ${cfg.bg} ${cfg.color}`}>
                                                         <Icon className="h-3 w-3" />
-                                                        {cfg.label}
+                                                        {t(cfg.labelKey)}
                                                     </span>
                                                 ) : (
                                                     <span className="text-[11px] text-slate-300">—</span>
@@ -525,7 +528,7 @@ export default function AttendancePage() {
                                             {/* Deduction */}
                                             <td className="py-2 px-2 text-right">
                                                 {(row.deductionAmount || 0) > 0 ? (
-                                                    <span className="text-red-600 font-semibold text-xs">{row.deductionAmount!.toLocaleString('fr-FR')} MRU</span>
+                                                    <span className="text-red-600 font-semibold text-xs">{row.deductionAmount!.toLocaleString(fmtLocale)} MRU</span>
                                                 ) : (
                                                     <span className="text-slate-300">—</span>
                                                 )}
@@ -540,7 +543,7 @@ export default function AttendancePage() {
                                                             onClick={() => saveRow(row)}
                                                             disabled={row.saving}
                                                             className="p-1 rounded-md bg-blue-600 text-white hover:bg-blue-700 transition-colors disabled:opacity-50"
-                                                            title="Enregistrer"
+                                                            title={tc('save')}
                                                         >
                                                             {row.saving ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
                                                         </button>
@@ -551,7 +554,7 @@ export default function AttendancePage() {
                                                             onClick={() => markAbsent(row.employeeId)}
                                                             disabled={row.saving}
                                                             className="p-1 rounded-md text-red-500 hover:bg-red-50 transition-colors disabled:opacity-50"
-                                                            title="Marquer absent"
+                                                            title={t('markAbsent')}
                                                         >
                                                             <XCircle className="h-3.5 w-3.5" />
                                                         </button>
@@ -564,7 +567,7 @@ export default function AttendancePage() {
                             </tbody>
                         </table>
                     )}
-                    <TablePagination page={page} totalItems={filteredRows.length} pageSize={PAGE_SIZE} onPageChange={setPage} />
+                    <TablePagination page={page} totalItems={filteredRows.length} pageSize={PAGE_SIZE} onPageChange={setPage} texts={{ showing: tc('showing'), of: tc('of'), rows: tc('rows') }} />
                 </CardContent>
             </Card>
         </motion.div>

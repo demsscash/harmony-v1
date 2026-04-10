@@ -8,14 +8,17 @@ import { useAuthStore } from '@/store/authStore';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
-import { Loader2, ArrowLeft, Mail, Phone, Calendar, Briefcase, History, FileText, Banknote, Plane, UserIcon, CheckCircle2, Key, ListTodo, Edit, Award, Percent, Tag, Clock } from 'lucide-react';
+import { Loader2, ArrowLeft, Mail, Phone, Calendar, Briefcase, History, FileText, Banknote, Plane, UserIcon, CheckCircle2, Key, ListTodo, Edit, Award, Percent, Tag, Clock, AlertTriangle, UserX, RotateCcw } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import Link from 'next/link';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { useTranslations } from 'next-intl';
 
-const EVENT_ICONS: Record<string, any> = { HIRED: CheckCircle2, PROFILE_UPDATED: UserIcon };
-const EVENT_COLORS: Record<string, string> = { HIRED: 'text-green-600', PROFILE_UPDATED: 'text-blue-600' };
+const EVENT_ICONS: Record<string, any> = { HIRED: CheckCircle2, PROFILE_UPDATED: UserIcon, TERMINATED: UserX, REINSTATED: RotateCcw, SANCTION: AlertTriangle };
+const EVENT_COLORS: Record<string, string> = { HIRED: 'text-green-600', PROFILE_UPDATED: 'text-blue-600', TERMINATED: 'text-red-600', REINSTATED: 'text-emerald-600', SANCTION: 'text-orange-600' };
 
 export default function EmployeeProfile() {
     const t = useTranslations('employees');
@@ -34,6 +37,38 @@ export default function EmployeeProfile() {
     const [leaveBalances, setLeaveBalances] = useState<any[]>([]);
     const [initializingBalances, setInitializingBalances] = useState(false);
     const currentYear = new Date().getFullYear();
+
+    const tt = useTranslations('termination');
+
+    // Termination state
+    const [showTermDialog, setShowTermDialog] = useState(false);
+    const [termForm, setTermForm] = useState({ terminationDate: new Date().toISOString().split('T')[0], terminationReason: '', terminationNotes: '' });
+    const [terminating, setTerminating] = useState(false);
+    const [reinstating, setReinstating] = useState(false);
+
+    const handleTerminate = async () => {
+        if (!termForm.terminationDate || !termForm.terminationReason) return;
+        setTerminating(true);
+        try {
+            await api.post(`/employees/${employeeId}/terminate`, termForm);
+            toast.success(tt('terminateSuccess'));
+            setShowTermDialog(false);
+            fetchProfileData();
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || 'Erreur');
+        } finally { setTerminating(false); }
+    };
+
+    const handleReinstate = async () => {
+        setReinstating(true);
+        try {
+            await api.post(`/employees/${employeeId}/reinstate`);
+            toast.success(tt('reinstateSuccess'));
+            fetchProfileData();
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || 'Erreur');
+        } finally { setReinstating(false); }
+    };
 
     const fetchProfileData = () => {
         setIsLoading(true);
@@ -72,7 +107,8 @@ export default function EmployeeProfile() {
         { id: 'PAYROLL', label: t('payroll'), icon: Banknote },
         { id: 'LEAVES', label: t('leavesTab'), icon: Plane },
         { id: 'ADVANTAGES', label: t('advantages'), icon: Award },
-        { id: 'ATTENDANCE', label: 'Pointage', icon: Clock },
+        { id: 'ATTENDANCE', label: t('attendanceTab'), icon: Clock },
+        { id: 'SANCTIONS', label: t('sanctions'), icon: AlertTriangle },
         { id: 'ONBOARDING', label: t('onboarding'), icon: ListTodo },
         { id: 'ACCESS', label: t('access'), icon: Key },
     ];
@@ -126,12 +162,12 @@ export default function EmployeeProfile() {
         try {
             const res = await api.post('/leaves/balances/initialize', { employeeId, year: currentYear });
             if (res.data.success) {
-                toast.success(`Soldes ${currentYear} initialisés avec succès`);
+                toast.success(t('balancesInitializedSuccess', { year: currentYear }));
                 const balancesRes = await api.get(`/leaves/balances/${employeeId}?year=${currentYear}`).catch(() => null);
                 if (balancesRes?.data?.success) setLeaveBalances(balancesRes.data.data || []);
             }
         } catch (error: any) {
-            toast.error(error.response?.data?.error || 'Erreur lors de l\'initialisation des soldes');
+            toast.error(error.response?.data?.error || t('balancesInitError'));
         } finally {
             setInitializingBalances(false);
         }
@@ -149,22 +185,56 @@ export default function EmployeeProfile() {
                         <p className="text-gray-500">{employee.firstName} {employee.lastName}</p>
                     </div>
                 </div>
-                <Link href={`/dashboard/employees/${employee.id}/edit`}>
-                    <Button variant="outline" className="gap-2 border-slate-300 text-slate-700 hover:bg-slate-50">
-                        <Edit className="h-4 w-4" />
-                        <span>{t('editProfile')}</span>
-                    </Button>
-                </Link>
+                <div className="flex items-center gap-2">
+                    {employee.status === 'TERMINATED' ? (
+                        <Button variant="outline" onClick={handleReinstate} disabled={reinstating} className="gap-2 border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                            {reinstating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RotateCcw className="h-4 w-4" />}
+                            <span>{tt('reinstate')}</span>
+                        </Button>
+                    ) : (
+                        <Button variant="outline" onClick={() => setShowTermDialog(true)} className="gap-2 border-red-200 text-red-600 hover:bg-red-50">
+                            <UserX className="h-4 w-4" />
+                            <span>{tt('terminate')}</span>
+                        </Button>
+                    )}
+                    <Link href={`/dashboard/employees/${employee.id}/edit`}>
+                        <Button variant="outline" className="gap-2 border-slate-300 text-slate-700 hover:bg-slate-50">
+                            <Edit className="h-4 w-4" />
+                            <span>{t('editProfile')}</span>
+                        </Button>
+                    </Link>
+                </div>
             </div>
+
+            {/* Termination banner */}
+            {employee.status === 'TERMINATED' && (
+                <div className="flex items-center gap-4 p-4 bg-red-50 border border-red-200 rounded-xl">
+                    <div className="h-10 w-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                        <UserX className="h-5 w-5 text-red-600" />
+                    </div>
+                    <div className="flex-1">
+                        <p className="font-bold text-red-800">{tt('terminated')}</p>
+                        <p className="text-sm text-red-600">
+                            {employee.terminationDate && tt('terminatedOn', { date: new Date(employee.terminationDate).toLocaleDateString('fr-FR') })}
+                            {employee.terminationReason && ` — ${tt(`reasons.${employee.terminationReason}`)}`}
+                        </p>
+                        {employee.terminationNotes && <p className="text-xs text-red-500 mt-1">{employee.terminationNotes}</p>}
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Panneau gauche */}
-                <Card className="border-t-4 border-t-blue-600 overflow-hidden">
+                <Card className={`border-t-4 ${employee.status === 'TERMINATED' ? 'border-t-red-500' : 'border-t-blue-600'} overflow-hidden`}>
                     <CardContent className="pt-6">
                         <div className="flex flex-col items-center text-center mb-6">
-                            <div className="h-24 w-24 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-3xl font-bold uppercase mb-4">
-                                {employee.firstName[0]}{employee.lastName[0]}
-                            </div>
+                            {employee.photo ? (
+                                <img src={employee.photo} alt={`${employee.firstName} ${employee.lastName}`} className="h-24 w-24 rounded-full object-cover border-2 border-blue-200 shadow-sm mb-4" />
+                            ) : (
+                                <div className="h-24 w-24 rounded-full bg-gradient-to-br from-blue-500 to-blue-700 flex items-center justify-center text-white text-3xl font-bold uppercase mb-4">
+                                    {employee.firstName[0]}{employee.lastName[0]}
+                                </div>
+                            )}
                             <h2 className="text-xl font-bold">{employee.firstName} {employee.lastName}</h2>
                             <p className="text-gray-500 mb-2">{employee.position}</p>
                             <span className={`px-3 py-1 text-xs font-semibold rounded-full ${employee.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-600'}`}>
@@ -390,8 +460,8 @@ export default function EmployeeProfile() {
                             <CardHeader>
                                 <div className="flex items-center justify-between">
                                     <div>
-                                        <CardTitle className="flex items-center gap-2 text-base"><Plane className="h-4 w-4" />Soldes de congés {currentYear}</CardTitle>
-                                        <CardDescription>Jours restants par type de congé</CardDescription>
+                                        <CardTitle className="flex items-center gap-2 text-base"><Plane className="h-4 w-4" />{t('leaveBalancesTitle', { year: currentYear })}</CardTitle>
+                                        <CardDescription>{t('leaveBalancesDesc')}</CardDescription>
                                     </div>
                                     <Button
                                         variant="outline"
@@ -401,7 +471,7 @@ export default function EmployeeProfile() {
                                         className="text-xs"
                                     >
                                         {initializingBalances ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : null}
-                                        Initialiser les soldes {currentYear}
+                                        {t('initializeBalances', { year: currentYear })}
                                     </Button>
                                 </div>
                             </CardHeader>
@@ -429,15 +499,15 @@ export default function EmployeeProfile() {
                                                         />
                                                     </div>
                                                     <div className="flex justify-between mt-1.5 text-[10px] text-slate-400">
-                                                        <span>Pris : {taken}j</span>
-                                                        <span>Restant : {remaining}j</span>
+                                                        <span>{t('taken', { taken })}</span>
+                                                        <span>{t('remaining', { remaining })}</span>
                                                     </div>
                                                 </div>
                                             );
                                         })}
                                     </div>
                                 ) : (
-                                    <p className="text-sm text-gray-400 italic text-center py-4">Aucun solde configuré. Cliquez sur &quot;Initialiser les soldes&quot; pour commencer.</p>
+                                    <p className="text-sm text-gray-400 italic text-center py-4">{t('noBalancesEmployee')}</p>
                                 )}
                             </CardContent>
                         </Card>
@@ -618,6 +688,10 @@ export default function EmployeeProfile() {
                         <AttendanceTab employeeId={employeeId} />
                     )}
 
+                    {activeTab === 'SANCTIONS' && (
+                        <SanctionsTab employeeId={employeeId} />
+                    )}
+
                     {activeTab === 'ACCESS' && (
                         <Card>
                             <CardHeader>
@@ -644,7 +718,7 @@ export default function EmployeeProfile() {
                                                 {t('noPortalAccessDesc')}
                                             </p>
                                         </div>
-                                        <Button onClick={handleCreateAccess} className="mt-2 bg-slate-900 hover:bg-slate-800">
+                                        <Button onClick={handleCreateAccess} className="mt-2 bg-slate-900 hover:bg-slate-800 text-white">
                                             <Key className="h-4 w-4 mr-2" />
                                             {t('generateAccess')}
                                         </Button>
@@ -655,6 +729,60 @@ export default function EmployeeProfile() {
                     )}
                 </div>
             </div>
+
+            {/* Termination Dialog */}
+            <Dialog open={showTermDialog} onOpenChange={(open) => { if (!open) setShowTermDialog(false); }}>
+                <DialogContent className="sm:max-w-[480px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2 text-red-700">
+                            <UserX className="h-5 w-5" /> {tt('terminateTitle')}
+                        </DialogTitle>
+                        <DialogDescription>{tt('terminateDesc')}</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                        <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-1.5">
+                                <Label>{tt('terminationDate')} *</Label>
+                                <Input type="date" value={termForm.terminationDate} onChange={e => setTermForm({ ...termForm, terminationDate: e.target.value })} required />
+                            </div>
+                            <div className="space-y-1.5">
+                                <Label>{tt('terminationReason')} *</Label>
+                                <select
+                                    value={termForm.terminationReason}
+                                    onChange={e => setTermForm({ ...termForm, terminationReason: e.target.value })}
+                                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none shadow-sm"
+                                    required
+                                >
+                                    <option value="">{tt('selectReason')}</option>
+                                    {['RESIGNATION', 'DISMISSAL', 'MUTUAL_AGREEMENT', 'END_OF_CONTRACT', 'RETIREMENT', 'LAYOFF', 'ABANDONMENT', 'DEATH'].map(r => (
+                                        <option key={r} value={r}>{tt(`reasons.${r}`)}</option>
+                                    ))}
+                                </select>
+                            </div>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>{tt('terminationNotes')}</Label>
+                            <textarea
+                                value={termForm.terminationNotes}
+                                onChange={e => setTermForm({ ...termForm, terminationNotes: e.target.value })}
+                                placeholder={tt('terminationNotesPlaceholder')}
+                                className="w-full min-h-[80px] rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none shadow-sm resize-none"
+                            />
+                        </div>
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowTermDialog(false)}>{tc('cancel')}</Button>
+                        <Button
+                            variant="destructive"
+                            onClick={handleTerminate}
+                            disabled={terminating || !termForm.terminationDate || !termForm.terminationReason}
+                        >
+                            {terminating ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserX className="h-4 w-4 mr-1" />}
+                            {tt('confirmTerminate')}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
@@ -663,6 +791,7 @@ export default function EmployeeProfile() {
 // ATTENDANCE TAB COMPONENT
 // =========================================
 function AttendanceTab({ employeeId }: { employeeId: string }) {
+    const t = useTranslations('employees');
     const [attendances, setAttendances] = useState<any[]>([]);
     const [schedule, setSchedule] = useState<any>(null);
     const [loading, setLoading] = useState(true);
@@ -696,8 +825,8 @@ function AttendanceTab({ employeeId }: { employeeId: string }) {
                 endTime: scheduleForm.endTime,
                 customGraceMinutes: scheduleForm.customGraceMinutes ? Number(scheduleForm.customGraceMinutes) : undefined,
             });
-            toast.success('Horaire mis à jour');
-        } catch { toast.error('Erreur'); } finally { setSavingSchedule(false); }
+            toast.success(t('scheduleUpdated'));
+        } catch { toast.error(t('scheduleError')); } finally { setSavingSchedule(false); }
     };
 
     // Stats
@@ -711,7 +840,7 @@ function AttendanceTab({ employeeId }: { employeeId: string }) {
         return acc;
     }, { present: 0, late: 0, absent: 0, early: 0, totalDeductions: 0, totalLateMin: 0 });
 
-    const statusLabel: Record<string, string> = { PRESENT: 'Présent', LATE: 'En retard', ABSENT: 'Absent', EARLY_DEPARTURE: 'Départ anticipé', LATE_AND_EARLY: 'Retard + Départ' };
+    const statusLabel: Record<string, string> = { PRESENT: t('statusPresent'), LATE: t('statusLate'), ABSENT: t('statusAbsent'), EARLY_DEPARTURE: t('statusEarlyDeparture'), LATE_AND_EARLY: t('statusLateAndEarly') };
     const statusColor: Record<string, string> = { PRESENT: 'bg-emerald-100 text-emerald-700', LATE: 'bg-amber-100 text-amber-700', ABSENT: 'bg-red-100 text-red-700', EARLY_DEPARTURE: 'bg-orange-100 text-orange-700', LATE_AND_EARLY: 'bg-rose-100 text-rose-700' };
 
     if (loading) return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-blue-600" /></div>;
@@ -723,10 +852,10 @@ function AttendanceTab({ employeeId }: { employeeId: string }) {
             {/* Stats */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
-                    { label: 'Présences', value: stats.present, color: 'text-emerald-600' },
-                    { label: 'Retards', value: stats.late, color: 'text-amber-600' },
-                    { label: 'Absences', value: stats.absent, color: 'text-red-600' },
-                    { label: 'Déductions', value: `${stats.totalDeductions.toLocaleString('fr-FR')} MRU`, color: 'text-red-600' },
+                    { label: t('statsPresences'), value: stats.present, color: 'text-emerald-600' },
+                    { label: t('statsLate'), value: stats.late, color: 'text-amber-600' },
+                    { label: t('statsAbsences'), value: stats.absent, color: 'text-red-600' },
+                    { label: t('statsDeductions'), value: `${stats.totalDeductions.toLocaleString('fr-FR')} MRU`, color: 'text-red-600' },
                 ].map(s => (
                     <div key={s.label} className="bg-white border rounded-xl p-3 text-center">
                         <p className="text-xs text-slate-500">{s.label}</p>
@@ -738,25 +867,25 @@ function AttendanceTab({ employeeId }: { employeeId: string }) {
             {/* Schedule config */}
             <Card>
                 <CardHeader className="pb-3">
-                    <CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4" /> Horaire personnalisé</CardTitle>
+                    <CardTitle className="text-sm flex items-center gap-2"><Clock className="h-4 w-4" /> {t('customSchedule')}</CardTitle>
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-wrap items-end gap-3">
                         <div>
-                            <label className="text-xs text-slate-500">Arrivée</label>
+                            <label className="text-xs text-slate-500">{t('arrival')}</label>
                             <input type="time" value={scheduleForm.startTime} onChange={e => setScheduleForm({ ...scheduleForm, startTime: e.target.value })} className="block mt-1 text-sm border rounded-lg px-2 py-1.5" />
                         </div>
                         <div>
-                            <label className="text-xs text-slate-500">Départ</label>
+                            <label className="text-xs text-slate-500">{t('departure')}</label>
                             <input type="time" value={scheduleForm.endTime} onChange={e => setScheduleForm({ ...scheduleForm, endTime: e.target.value })} className="block mt-1 text-sm border rounded-lg px-2 py-1.5" />
                         </div>
                         <div>
-                            <label className="text-xs text-slate-500">Tolérance (min)</label>
-                            <input type="number" min={0} value={scheduleForm.customGraceMinutes} onChange={e => setScheduleForm({ ...scheduleForm, customGraceMinutes: e.target.value })} placeholder="Défaut" className="block mt-1 text-sm border rounded-lg px-2 py-1.5 w-24" />
+                            <label className="text-xs text-slate-500">{t('tolerance')}</label>
+                            <input type="number" min={0} value={scheduleForm.customGraceMinutes} onChange={e => setScheduleForm({ ...scheduleForm, customGraceMinutes: e.target.value })} placeholder={t('defaultPlaceholder')} className="block mt-1 text-sm border rounded-lg px-2 py-1.5 w-24" />
                         </div>
                         <Button size="sm" onClick={handleSaveSchedule} disabled={savingSchedule} className="bg-blue-600 hover:bg-blue-700 text-white">
                             {savingSchedule ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
-                            Enregistrer
+                            {t('saveSchedule')}
                         </Button>
                     </div>
                 </CardContent>
@@ -766,7 +895,7 @@ function AttendanceTab({ employeeId }: { employeeId: string }) {
             <Card>
                 <CardHeader className="pb-3">
                     <div className="flex items-center justify-between">
-                        <CardTitle className="text-sm">Pointages — <span className="capitalize">{monthLabel}</span></CardTitle>
+                        <CardTitle className="text-sm">{t('attendanceRecords', { monthLabel })}</CardTitle>
                         <div className="flex items-center gap-1">
                             <button onClick={() => { if (month === 1) { setMonth(12); setYear(y => y - 1); } else setMonth(m => m - 1); }} className="p-1 hover:bg-slate-100 rounded">&larr;</button>
                             <button onClick={() => { if (month === 12) { setMonth(1); setYear(y => y + 1); } else setMonth(m => m + 1); }} className="p-1 hover:bg-slate-100 rounded">&rarr;</button>
@@ -775,18 +904,18 @@ function AttendanceTab({ employeeId }: { employeeId: string }) {
                 </CardHeader>
                 <CardContent>
                     {attendances.length === 0 ? (
-                        <p className="text-sm text-slate-400 italic text-center py-6">Aucun pointage ce mois</p>
+                        <p className="text-sm text-slate-400 italic text-center py-6">{t('noAttendanceThisMonth')}</p>
                     ) : (
                         <div className="overflow-x-auto">
                             <table className="w-full text-sm">
                                 <thead>
                                     <tr className="border-b text-left text-slate-500">
-                                        <th className="pb-2 font-medium">Date</th>
-                                        <th className="pb-2 font-medium">Arrivée</th>
-                                        <th className="pb-2 font-medium">Départ</th>
-                                        <th className="pb-2 font-medium">Statut</th>
-                                        <th className="pb-2 font-medium text-center">Retard</th>
-                                        <th className="pb-2 font-medium text-right">Déduction</th>
+                                        <th className="pb-2 font-medium">{t('dateCol')}</th>
+                                        <th className="pb-2 font-medium">{t('arrivalCol')}</th>
+                                        <th className="pb-2 font-medium">{t('departureCol')}</th>
+                                        <th className="pb-2 font-medium">{t('statusColAttendance')}</th>
+                                        <th className="pb-2 font-medium text-center">{t('lateCol')}</th>
+                                        <th className="pb-2 font-medium text-right">{t('deductionCol')}</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -807,6 +936,105 @@ function AttendanceTab({ employeeId }: { employeeId: string }) {
                                 </tbody>
                             </table>
                         </div>
+                    )}
+                </CardContent>
+            </Card>
+        </div>
+    );
+}
+
+// =========================================
+// SANCTIONS TAB COMPONENT
+// =========================================
+function SanctionsTab({ employeeId }: { employeeId: string }) {
+    const t = useTranslations('sanctions');
+    const tc = useTranslations('common');
+    const [sanctions, setSanctions] = useState<any[]>([]);
+    const [loading, setLoading] = useState(true);
+
+    useEffect(() => {
+        api.get('/sanctions', { params: { employeeId } })
+            .then(res => setSanctions(res.data?.data || []))
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    }, [employeeId]);
+
+    const typeLabel = (type: string) => t(`types.${type}`) || type;
+    const isFinancial = (type: string) => ['DEDUCTION_PRIME', 'RETENUE_SALAIRE'].includes(type);
+
+    const TYPE_COLOR: Record<string, string> = {
+        DEDUCTION_PRIME: 'bg-orange-100 text-orange-700',
+        RETENUE_SALAIRE: 'bg-red-100 text-red-700',
+        AVERTISSEMENT: 'bg-amber-100 text-amber-700',
+        MISE_A_PIED: 'bg-purple-100 text-purple-700',
+    };
+
+    if (loading) return <div className="flex justify-center py-12"><Loader2 className="h-6 w-6 animate-spin text-blue-600" /></div>;
+
+    const totalDeductions = sanctions.filter(s => s.status === 'ACTIVE' && isFinancial(s.type)).reduce((sum, s) => sum + Number(s.deductionAmount), 0);
+
+    return (
+        <div className="space-y-4">
+            {totalDeductions > 0 && (
+                <div className="flex items-center gap-3 p-3 bg-red-50 border border-red-100 rounded-xl">
+                    <AlertTriangle className="h-5 w-5 text-red-500 shrink-0" />
+                    <div>
+                        <p className="text-sm font-semibold text-red-700">{t('impactPayroll')}</p>
+                        <p className="text-xs text-red-600">{t('totalAmount')}: {totalDeductions.toLocaleString()} MRU</p>
+                    </div>
+                </div>
+            )}
+
+            <Card>
+                <CardHeader>
+                    <CardTitle className="flex items-center gap-2 text-base"><AlertTriangle className="h-4 w-4" />{t('sanctionHistory')}</CardTitle>
+                    <CardDescription>{t('sanctionHistoryDesc')}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                    {sanctions.length > 0 ? (
+                        <div className="overflow-x-auto">
+                            <table className="w-full text-sm text-left">
+                                <thead className="bg-slate-50 text-slate-500 border-b">
+                                    <tr>
+                                        <th className="px-4 py-3 font-semibold">{t('date')}</th>
+                                        <th className="px-4 py-3 font-semibold">{t('type')}</th>
+                                        <th className="px-4 py-3 font-semibold">{t('reason')}</th>
+                                        <th className="px-4 py-3 font-semibold text-right">{t('deductionAmount')}</th>
+                                        <th className="px-4 py-3 font-semibold">{t('status')}</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-slate-100">
+                                    {sanctions.map((s: any) => (
+                                        <tr key={s.id}>
+                                            <td className="px-4 py-3 text-slate-600">{new Date(s.date).toLocaleDateString('fr-FR')}</td>
+                                            <td className="px-4 py-3">
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${TYPE_COLOR[s.type] || ''}`}>
+                                                    {typeLabel(s.type)}
+                                                </span>
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <p className="text-slate-700 max-w-[200px] truncate">{s.reason}</p>
+                                                {s.comment && <p className="text-xs text-slate-400 truncate mt-0.5">{s.comment}</p>}
+                                                {s.advantage && <p className="text-xs text-orange-500 mt-0.5">{s.advantage.name}</p>}
+                                            </td>
+                                            <td className="px-4 py-3 text-right">
+                                                {isFinancial(s.type) && Number(s.deductionAmount) > 0
+                                                    ? <span className="font-bold text-red-600">-{Number(s.deductionAmount).toLocaleString()} MRU</span>
+                                                    : <span className="text-xs text-slate-400">—</span>
+                                                }
+                                            </td>
+                                            <td className="px-4 py-3">
+                                                <span className={`inline-flex items-center px-2 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider ${s.status === 'ACTIVE' ? 'bg-red-100 text-red-700' : 'bg-slate-100 text-slate-600'}`}>
+                                                    {t(`statuses.${s.status}`)}
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                        </div>
+                    ) : (
+                        <p className="text-sm text-gray-400 italic text-center py-8">{t('noSanctions')}</p>
                     )}
                 </CardContent>
             </Card>

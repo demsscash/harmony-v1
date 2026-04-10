@@ -117,19 +117,19 @@ function SuperAdminSettings() {
                                 <AlertTriangle className="h-5 w-5 text-red-600 dark:text-red-500" />
                             </div>
                             <div>
-                                <CardTitle className="text-lg font-bold text-red-800 dark:text-red-400">Zone de Danger</CardTitle>
-                                <CardDescription className="text-sm mt-0.5 text-red-600/80 dark:text-red-400/80">Actions critiques sur le cœur du système.</CardDescription>
+                                <CardTitle className="text-lg font-bold text-red-800 dark:text-red-400">{t('dangerZone')}</CardTitle>
+                                <CardDescription className="text-sm mt-0.5 text-red-600/80 dark:text-red-400/80">{t('dangerZoneDesc')}</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent className="pt-6 space-y-4">
                         <div className="flex items-center justify-between p-5 rounded-2xl border border-red-200/60 dark:border-red-900/50 bg-white dark:bg-slate-900 shadow-sm transition-all hover:border-red-300 dark:hover:border-red-800">
                             <div>
-                                <p className="font-bold text-slate-900 dark:text-white text-base">Redémarrer le Service API</p>
-                                <p className="text-sm text-slate-500 mt-1">Force la déconnexion de tous les utilisateurs et relance le processus Node.js.</p>
+                                <p className="font-bold text-slate-900 dark:text-white text-base">{t('restartApi')}</p>
+                                <p className="text-sm text-slate-500 mt-1">{t('restartApiDesc')}</p>
                             </div>
                             <Button variant="outline" className="h-10 border-red-200 dark:border-red-900 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 hover:text-red-700 font-bold px-6">
-                                <RefreshCw className="h-4 w-4 mr-2" /> Forcer le Redémarrage
+                                <RefreshCw className="h-4 w-4 mr-2" /> {t('forceRestart')}
                             </Button>
                         </div>
                     </CardContent>
@@ -177,7 +177,7 @@ function LeaveTypesCard() {
     };
 
     const handleSave = async () => {
-        if (!form.name) { toast.error('Le nom est requis'); return; }
+        if (!form.name) { toast.error(t('nameRequired')); return; }
         setSaving(true);
         try {
             if (editingId) {
@@ -189,16 +189,16 @@ function LeaveTypesCard() {
             }
             resetForm();
             fetchLeaveTypes();
-        } catch (e: any) { toast.error(e.response?.data?.error || 'Erreur'); } finally { setSaving(false); }
+        } catch (e: any) { toast.error(e.response?.data?.error || t('genericError')); } finally { setSaving(false); }
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Supprimer ce type de congé ?')) return;
+        if (!confirm(t('deleteLeaveTypeConfirm'))) return;
         try {
             await api.delete(`/leaves/types/${id}`);
-            toast.success('Supprimé');
+            toast.success(t('deleted'));
             fetchLeaveTypes();
-        } catch (e: any) { toast.error(e.response?.data?.error || 'Impossible de supprimer'); }
+        } catch (e: any) { toast.error(e.response?.data?.error || t('cannotDelete')); }
     };
 
     return (
@@ -210,8 +210,8 @@ function LeaveTypesCard() {
                             <Plane className="h-5 w-5 text-sky-600 dark:text-sky-400" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">Types de Congés</CardTitle>
-                            <CardDescription className="text-sm mt-1 text-slate-500">Gérez les catégories de congés disponibles pour vos employés.</CardDescription>
+                            <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">{t('leaveTypesTitle')}</CardTitle>
+                            <CardDescription className="text-sm mt-1 text-slate-500">{t('leaveTypesCardDesc')}</CardDescription>
                         </div>
                     </div>
                     <button
@@ -219,7 +219,7 @@ function LeaveTypesCard() {
                         onClick={() => { resetForm(); setShowForm(true); }}
                         className="flex items-center gap-2 px-4 py-2 bg-sky-600 hover:bg-sky-700 text-white text-sm font-semibold rounded-xl transition-colors"
                     >
-                        <Plus className="h-4 w-4" /> Nouveau
+                        <Plus className="h-4 w-4" /> {t('new')}
                     </button>
                 </div>
             </CardHeader>
@@ -229,36 +229,36 @@ function LeaveTypesCard() {
                         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                             className="mb-5 p-5 bg-sky-50 dark:bg-sky-950/20 border border-sky-200 dark:border-sky-900/50 rounded-2xl space-y-4"
                         >
-                            <h4 className="font-bold text-slate-900 dark:text-white text-sm">{editingId ? 'Modifier le type de congé' : 'Nouveau type de congé'}</h4>
+                            <h4 className="font-bold text-slate-900 dark:text-white text-sm">{editingId ? t('editLeaveType') : t('newLeaveType')}</h4>
                             <div className="grid sm:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Nom <span className="text-red-500">*</span></label>
-                                    <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Ex : Congé Annuel" className="w-full h-10 px-3 text-sm border border-slate-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500" />
+                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('nameLabel')} <span className="text-red-500">*</span></label>
+                                    <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder={t('leaveNamePlaceholder')} className="w-full h-10 px-3 text-sm border border-slate-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500" />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Jours alloués/an</label>
+                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('daysAllowedPerYear')}</label>
                                     <input type="number" min="0" value={form.daysAllowed} onChange={e => setForm(p => ({ ...p, daysAllowed: Number(e.target.value) }))} className="w-full h-10 px-3 text-sm border border-slate-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500" />
                                 </div>
                                 <div className="space-y-1.5 sm:col-span-2">
-                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Description</label>
-                                    <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder="Optionnel" className="w-full h-10 px-3 text-sm border border-slate-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500" />
+                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('description')}</label>
+                                    <input value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} placeholder={t('optional')} className="w-full h-10 px-3 text-sm border border-slate-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-sky-500/30 focus:border-sky-500" />
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input type="checkbox" checked={form.isPaid} onChange={e => setForm(p => ({ ...p, isPaid: e.target.checked }))} className="rounded" />
-                                        <span className="text-sm font-medium text-slate-700">Payé</span>
+                                        <span className="text-sm font-medium text-slate-700">{t('paid')}</span>
                                     </label>
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input type="checkbox" checked={form.requiresApproval} onChange={e => setForm(p => ({ ...p, requiresApproval: e.target.checked }))} className="rounded" />
-                                        <span className="text-sm font-medium text-slate-700">Approbation requise</span>
+                                        <span className="text-sm font-medium text-slate-700">{t('approvalRequired')}</span>
                                     </label>
                                 </div>
                             </div>
                             <div className="flex justify-end gap-2 pt-2">
-                                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">Annuler</button>
+                                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">{tc('cancel')}</button>
                                 <button type="button" onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-bold bg-sky-600 hover:bg-sky-700 text-white rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2">
                                     {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                                    {editingId ? 'Enregistrer' : 'Créer'}
+                                    {editingId ? tc('save') : tc('create')}
                                 </button>
                             </div>
                         </motion.div>
@@ -270,8 +270,8 @@ function LeaveTypesCard() {
                 ) : leaveTypes.length === 0 ? (
                     <div className="text-center py-10 text-slate-400">
                         <Plane className="h-10 w-10 mx-auto mb-3 text-slate-200" />
-                        <p className="font-medium text-sm">Aucun type de congé configuré</p>
-                        <p className="text-xs mt-1">Ajoutez vos premiers types (congé annuel, maladie, etc.)</p>
+                        <p className="font-medium text-sm">{t('noLeaveTypeConfigured')}</p>
+                        <p className="text-xs mt-1">{t('addFirstLeaveTypes')}</p>
                     </div>
                 ) : (
                     <div className="space-y-2">
@@ -284,9 +284,9 @@ function LeaveTypesCard() {
                                     <div>
                                         <p className="font-semibold text-slate-800 text-sm">{lt.name}</p>
                                         <div className="flex items-center gap-2 mt-0.5">
-                                            {lt.daysAllowed > 0 && <span className="text-xs text-slate-500">{lt.daysAllowed} j/an</span>}
-                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${lt.isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{lt.isPaid ? 'Payé' : 'Non payé'}</span>
-                                            {lt.requiresApproval && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">Approbation</span>}
+                                            {lt.daysAllowed > 0 && <span className="text-xs text-slate-500">{lt.daysAllowed} {t('daysPerYear')}</span>}
+                                            <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full ${lt.isPaid ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{lt.isPaid ? t('paid') : t('unpaid')}</span>
+                                            {lt.requiresApproval && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">{t('approval')}</span>}
                                         </div>
                                     </div>
                                 </div>
@@ -311,6 +311,8 @@ function LeaveTypesCard() {
 // HOLIDAYS MANAGEMENT CARD
 // =========================================
 function HolidaysCard() {
+    const t = useTranslations('settings');
+    const tc = useTranslations('common');
     const [holidays, setHolidays] = React.useState<any[]>([]);
     const [loading, setLoading] = React.useState(true);
     const [saving, setSaving] = React.useState(false);
@@ -341,38 +343,38 @@ function HolidaysCard() {
     };
 
     const handleSave = async () => {
-        if (!form.name) { toast.error('Le nom est requis'); return; }
-        if (!form.date) { toast.error('La date est requise'); return; }
+        if (!form.name) { toast.error(t('nameRequired')); return; }
+        if (!form.date) { toast.error(t('dateRequired')); return; }
         setSaving(true);
         try {
             if (editingId) {
                 await api.put(`/holidays/${editingId}`, form);
-                toast.success('Jour férié mis à jour');
+                toast.success(t('holidayUpdated'));
             } else {
                 await api.post('/holidays', form);
-                toast.success('Jour férié créé');
+                toast.success(t('holidayCreated'));
             }
             resetForm();
             fetchHolidays();
-        } catch (e: any) { toast.error(e.response?.data?.error || 'Erreur'); } finally { setSaving(false); }
+        } catch (e: any) { toast.error(e.response?.data?.error || t('genericError')); } finally { setSaving(false); }
     };
 
     const handleDelete = async (id: string) => {
-        if (!confirm('Supprimer ce jour férié ?')) return;
+        if (!confirm(t('deleteHolidayConfirm'))) return;
         try {
             await api.delete(`/holidays/${id}`);
-            toast.success('Supprimé');
+            toast.success(t('deleted'));
             fetchHolidays();
-        } catch (e: any) { toast.error(e.response?.data?.error || 'Impossible de supprimer'); }
+        } catch (e: any) { toast.error(e.response?.data?.error || t('cannotDelete')); }
     };
 
     const handleSeedDefaults = async () => {
         setSeeding(true);
         try {
             await api.post('/holidays/seed-defaults');
-            toast.success('Jours fériés par défaut chargés');
+            toast.success(t('defaultHolidaysLoaded'));
             fetchHolidays();
-        } catch (e: any) { toast.error(e.response?.data?.error || 'Erreur lors du chargement'); } finally { setSeeding(false); }
+        } catch (e: any) { toast.error(e.response?.data?.error || t('loadError')); } finally { setSeeding(false); }
     };
 
     const formatDate = (dateStr: string) => {
@@ -390,8 +392,8 @@ function HolidaysCard() {
                             <Calendar className="h-5 w-5 text-amber-600 dark:text-amber-400" />
                         </div>
                         <div>
-                            <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">Jours Fériés</CardTitle>
-                            <CardDescription className="text-sm mt-1 text-slate-500">Gérez les jours fériés officiels de votre organisation.</CardDescription>
+                            <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">{t('holidaysTitle')}</CardTitle>
+                            <CardDescription className="text-sm mt-1 text-slate-500">{t('holidaysDesc')}</CardDescription>
                         </div>
                     </div>
                     <div className="flex items-center gap-2">
@@ -402,14 +404,14 @@ function HolidaysCard() {
                             className="flex items-center gap-2 px-4 py-2 bg-amber-100 hover:bg-amber-200 text-amber-800 text-sm font-semibold rounded-xl transition-colors disabled:opacity-50"
                         >
                             {seeding ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-                            Charger les fériés par défaut
+                            {t('loadDefaults')}
                         </button>
                         <button
                             type="button"
                             onClick={() => { resetForm(); setShowForm(true); }}
                             className="flex items-center gap-2 px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white text-sm font-semibold rounded-xl transition-colors"
                         >
-                            <Plus className="h-4 w-4" /> Nouveau
+                            <Plus className="h-4 w-4" /> {t('new')}
                         </button>
                     </div>
                 </div>
@@ -420,28 +422,28 @@ function HolidaysCard() {
                         <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }}
                             className="mb-5 p-5 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-900/50 rounded-2xl space-y-4"
                         >
-                            <h4 className="font-bold text-slate-900 dark:text-white text-sm">{editingId ? 'Modifier le jour férié' : 'Nouveau jour férié'}</h4>
+                            <h4 className="font-bold text-slate-900 dark:text-white text-sm">{editingId ? t('editHoliday') : t('newHoliday')}</h4>
                             <div className="grid sm:grid-cols-2 gap-4">
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Nom <span className="text-red-500">*</span></label>
-                                    <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder="Ex : Fête de l'Indépendance" className="w-full h-10 px-3 text-sm border border-slate-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500" />
+                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('nameLabel')} <span className="text-red-500">*</span></label>
+                                    <input value={form.name} onChange={e => setForm(p => ({ ...p, name: e.target.value }))} placeholder={t('holidayNamePlaceholder')} className="w-full h-10 px-3 text-sm border border-slate-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500" />
                                 </div>
                                 <div className="space-y-1.5">
-                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">Date <span className="text-red-500">*</span></label>
+                                    <label className="text-xs font-bold text-slate-600 uppercase tracking-wider">{t('dateLabel')} <span className="text-red-500">*</span></label>
                                     <input type="date" value={form.date} onChange={e => setForm(p => ({ ...p, date: e.target.value }))} className="w-full h-10 px-3 text-sm border border-slate-200 rounded-xl bg-white outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500" />
                                 </div>
                                 <div className="flex items-center gap-4">
                                     <label className="flex items-center gap-2 cursor-pointer">
                                         <input type="checkbox" checked={form.isRecurring} onChange={e => setForm(p => ({ ...p, isRecurring: e.target.checked }))} className="rounded" />
-                                        <span className="text-sm font-medium text-slate-700">Récurrent chaque année</span>
+                                        <span className="text-sm font-medium text-slate-700">{t('recurringYearly')}</span>
                                     </label>
                                 </div>
                             </div>
                             <div className="flex justify-end gap-2 pt-2">
-                                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">Annuler</button>
+                                <button type="button" onClick={resetForm} className="px-4 py-2 text-sm font-semibold text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">{tc('cancel')}</button>
                                 <button type="button" onClick={handleSave} disabled={saving} className="px-4 py-2 text-sm font-bold bg-amber-600 hover:bg-amber-700 text-white rounded-xl transition-colors disabled:opacity-50 flex items-center gap-2">
                                     {saving && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                                    {editingId ? 'Enregistrer' : 'Créer'}
+                                    {editingId ? tc('save') : tc('create')}
                                 </button>
                             </div>
                         </motion.div>
@@ -453,8 +455,8 @@ function HolidaysCard() {
                 ) : holidays.length === 0 ? (
                     <div className="text-center py-10 text-slate-400">
                         <Calendar className="h-10 w-10 mx-auto mb-3 text-slate-200" />
-                        <p className="font-medium text-sm">Aucun jour férié configuré</p>
-                        <p className="text-xs mt-1">Ajoutez vos jours fériés ou chargez les valeurs par défaut</p>
+                        <p className="font-medium text-sm">{t('noHolidayConfigured')}</p>
+                        <p className="text-xs mt-1">{t('addHolidaysHint')}</p>
                     </div>
                 ) : (
                     <div className="space-y-2">
@@ -468,7 +470,7 @@ function HolidaysCard() {
                                         <p className="font-semibold text-slate-800 text-sm">{h.name}</p>
                                         <div className="flex items-center gap-2 mt-0.5">
                                             <span className="text-xs text-slate-500">{formatDate(h.date)}</span>
-                                            {h.isRecurring && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">Récurrent</span>}
+                                            {h.isRecurring && <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-orange-100 text-orange-700">{t('recurring')}</span>}
                                         </div>
                                     </div>
                                 </div>
@@ -701,7 +703,7 @@ function TenantSettings() {
                     });
                 }
             } catch (error) {
-                toast.error('Erreur lors du chargement des paramètres');
+                toast.error(t('settingsLoadError'));
             } finally {
                 setLoading(false);
             }
@@ -714,9 +716,9 @@ function TenantSettings() {
         setSaving(true);
         try {
             await api.put('/settings', form);
-            toast.success('Paramètres sauvegardés avec succès');
+            toast.success(t('settingsSaved'));
         } catch (error) {
-            toast.error('Erreur de sauvegarde');
+            toast.error(t('settingsSaveError'));
         } finally {
             setSaving(false);
         }
@@ -737,7 +739,7 @@ function TenantSettings() {
             window.open(fileURL, '_blank');
 
         } catch (error) {
-            toast.error('Impossible de générer l\'aperçu du contrat');
+            toast.error(t('previewError'));
             console.error(error);
         } finally {
             setPreviewing(false);
@@ -755,15 +757,15 @@ function TenantSettings() {
                 smtpFromEmail: smtpData.smtpFromEmail || undefined,
                 smtpFromName: smtpData.smtpFromName || undefined,
             });
-            toast.success('Configuration SMTP sauvegardée !');
+            toast.success(t('smtpSaved'));
         } catch {
-            toast.error('Erreur lors de la sauvegarde SMTP');
+            toast.error(t('smtpSaveError'));
         }
     };
 
     const handleSmtpTest = async () => {
         if (!smtpForm.testEmail) {
-            toast.error('Veuillez saisir un email de test');
+            toast.error(t('enterTestEmail'));
             return;
         }
         setTestingSmtp(true);
@@ -771,7 +773,7 @@ function TenantSettings() {
             await api.post('/notifications/test-smtp', { testEmail: smtpForm.testEmail });
             toast.success(t('testSent'));
         } catch (e: any) {
-            toast.error(e.response?.data?.error || 'Erreur SMTP. Vérifiez vos paramètres.');
+            toast.error(e.response?.data?.error || t('smtpTestError'));
         } finally {
             setTestingSmtp(false);
         }
@@ -780,7 +782,7 @@ function TenantSettings() {
     if (loading) return (
         <div className="flex flex-col items-center justify-center p-20 gap-4">
             <Loader2 className="h-10 w-10 text-blue-500 animate-spin" />
-            <p className="text-slate-500 font-medium animate-pulse">Chargement de votre configuration...</p>
+            <p className="text-slate-500 font-medium animate-pulse">{t('settingsLoading')}</p>
         </div>
     );
 
@@ -797,29 +799,29 @@ function TenantSettings() {
                                 <Building2 className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                             </div>
                             <div>
-                                <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">Identité de l'Organisation</CardTitle>
-                                <CardDescription className="text-sm mt-1 text-slate-500">Informations légales et contact principal.</CardDescription>
+                                <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">{t('orgIdentity')}</CardTitle>
+                                <CardDescription className="text-sm mt-1 text-slate-500">{t('orgIdentityDesc')}</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent className="pt-8 grid sm:grid-cols-2 gap-8">
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nom Légal</label>
+                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('legalName')}</label>
                             <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} required
                                 className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-medium" />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Email Direction / RH</label>
+                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('emailHrDirection')}</label>
                             <Input type="email" value={form.email} onChange={e => setForm({ ...form, email: e.target.value })}
                                 className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800" />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Téléphone Standard</label>
+                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('phoneStandard')}</label>
                             <Input value={form.phone} onChange={e => setForm({ ...form, phone: e.target.value })}
                                 className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800" />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Devise Comptable</label>
+                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('accountingCurrency')}</label>
                             <div className="relative">
                                 <select className="w-full h-11 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 text-sm font-medium text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow"
                                     value={form.currency} onChange={e => setForm({ ...form, currency: e.target.value })}>
@@ -842,14 +844,14 @@ function TenantSettings() {
                                 <Briefcase className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
                             </div>
                             <div>
-                                <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">Règles Métier RH</CardTitle>
-                                <CardDescription className="text-sm mt-1 text-slate-500">Configuration du temps de travail et politiques de congés.</CardDescription>
+                                <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">{t('hrRules')}</CardTitle>
+                                <CardDescription className="text-sm mt-1 text-slate-500">{t('hrRulesDesc')}</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent className="pt-8 grid sm:grid-cols-2 gap-8">
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Mois d'Ouverture Fiscale</label>
+                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('fiscalYearStartMonth')}</label>
                             <div className="relative">
                                 <select className="w-full h-11 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 text-sm font-medium text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow"
                                     value={form.fiscalYearStart} onChange={e => setForm({ ...form, fiscalYearStart: Number(e.target.value) })}>
@@ -861,33 +863,33 @@ function TenantSettings() {
                             </div>
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Jours de Travail Hebdomadaire</label>
+                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('workDaysPerWeek')}</label>
                             <Input type="number" min="1" max="7" value={form.workDaysPerWeek} onChange={e => setForm({ ...form, workDaysPerWeek: Number(e.target.value) })}
                                 className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-medium" />
                         </div>
                         <div className="space-y-2">
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Jours de Congé Annuel par Défaut</label>
+                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('defaultAnnualLeaveDays')}</label>
                             <Input type="number" min="0" max="365" value={form.defaultLeaveDays} onChange={e => setForm({ ...form, defaultLeaveDays: Number(e.target.value) })}
                                 className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-medium" />
                         </div>
 
                         <div className="space-y-2 sm:col-span-2 pt-4 border-t border-slate-100 dark:border-slate-800">
-                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">Politique de Report de Congés</label>
+                            <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 block">{t('leaveCarryOverPolicy')}</label>
                             <div className="grid sm:grid-cols-2 gap-4">
                                 <div className="relative">
                                     <select className="w-full h-11 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 px-4 text-sm font-medium text-slate-900 dark:text-white appearance-none outline-none focus:ring-2 focus:ring-blue-500/50 transition-shadow"
                                         value={form.leaveCarryOver} onChange={e => setForm({ ...form, leaveCarryOver: e.target.value })}>
-                                        <option value="NONE">Pas de report autorisé</option>
-                                        <option value="CAPPED">Plafonné (Maximum de jours)</option>
-                                        <option value="UNLIMITED">Report Illimité</option>
-                                        <option value="CONFIGURABLE">Configurable par employé</option>
+                                        <option value="NONE">{t('carryOverNone')}</option>
+                                        <option value="CAPPED">{t('carryOverCapped')}</option>
+                                        <option value="UNLIMITED">{t('carryOverUnlimited')}</option>
+                                        <option value="CONFIGURABLE">{t('carryOverConfigurable')}</option>
                                     </select>
                                     <ChevronRight className="absolute right-4 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400 rotate-90 pointer-events-none" />
                                 </div>
                                 <AnimatePresence>
                                     {form.leaveCarryOver === 'CAPPED' && (
                                         <motion.div initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -10 }}>
-                                            <Input type="number" min="0" placeholder="Plafond max (jours)"
+                                            <Input type="number" min="0" placeholder={t('maxCarryOverPlaceholder')}
                                                 value={form.maxCarryOverDays} onChange={e => setForm({ ...form, maxCarryOverDays: Number(e.target.value) })}
                                                 className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 font-medium border-l-amber-400 border-l-4" />
                                         </motion.div>
@@ -928,8 +930,8 @@ function TenantSettings() {
                                 <Mail className="h-5 w-5 text-blue-600 dark:text-blue-400" />
                             </div>
                             <div>
-                                <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">Configuration SMTP</CardTitle>
-                                <CardDescription className="text-sm mt-1 text-slate-500">Emails de notifications pour vos employés (congés, bienvenue…).</CardDescription>
+                                <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">{t('smtpConfigTitle')}</CardTitle>
+                                <CardDescription className="text-sm mt-1 text-slate-500">{t('smtpConfigDesc')}</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
@@ -940,34 +942,34 @@ function TenantSettings() {
                                 <Input placeholder="smtp.example.com" value={smtpForm.smtpHost} onChange={e => setSmtpForm({ ...smtpForm, smtpHost: e.target.value })} className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800" />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Port</label>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('portLabel')}</label>
                                 <Input placeholder="587" value={smtpForm.smtpPort} onChange={e => setSmtpForm({ ...smtpForm, smtpPort: e.target.value })} className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800" />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Utilisateur SMTP</label>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('smtpUserLabel')}</label>
                                 <Input placeholder="notifications@example.com" value={smtpForm.smtpUser} onChange={e => setSmtpForm({ ...smtpForm, smtpUser: e.target.value })} className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800" />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Mot de passe</label>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('passwordLabel')}</label>
                                 <Input type="password" placeholder="••••••••" value={smtpForm.smtpPassword} onChange={e => setSmtpForm({ ...smtpForm, smtpPassword: e.target.value })} className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800" />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Email Expéditeur</label>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('senderEmailLabel')}</label>
                                 <Input placeholder="rh@example.com" value={smtpForm.smtpFromEmail} onChange={e => setSmtpForm({ ...smtpForm, smtpFromEmail: e.target.value })} className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800" />
                             </div>
                             <div className="space-y-2">
-                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">Nom Expéditeur</label>
-                                <Input placeholder="DRH Entreprise" value={smtpForm.smtpFromName} onChange={e => setSmtpForm({ ...smtpForm, smtpFromName: e.target.value })} className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800" />
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider">{t('senderNameLabel')}</label>
+                                <Input placeholder={t('senderNamePlaceholder')} value={smtpForm.smtpFromName} onChange={e => setSmtpForm({ ...smtpForm, smtpFromName: e.target.value })} className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800" />
                             </div>
                         </div>
                         <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex flex-wrap items-center gap-3">
-                            <Input placeholder="Email de test : test@example.com" value={smtpForm.testEmail} onChange={e => setSmtpForm({ ...smtpForm, testEmail: e.target.value })} className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex-1 min-w-[220px]" />
+                            <Input placeholder={t('testEmailPlaceholder')} value={smtpForm.testEmail} onChange={e => setSmtpForm({ ...smtpForm, testEmail: e.target.value })} className="h-11 bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 flex-1 min-w-[220px]" />
                             <Button type="button" variant="outline" onClick={handleSmtpTest} disabled={testingSmtp} className="h-11 px-5 border-blue-200 text-blue-700 hover:bg-blue-50">
                                 {testingSmtp ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Mail className="h-4 w-4 mr-2" />}
-                                Tester SMTP
+                                {t('testSmtp')}
                             </Button>
                             <Button type="button" onClick={handleSmtpSave} className="h-11 px-6 bg-slate-900 dark:bg-white text-white dark:text-slate-900 hover:bg-slate-800">
-                                <Save className="h-4 w-4 mr-2" /> Sauvegarder SMTP
+                                <Save className="h-4 w-4 mr-2" /> {t('saveSmtp')}
                             </Button>
                         </div>
                     </CardContent>
@@ -982,38 +984,38 @@ function TenantSettings() {
                                 <FileText className="h-5 w-5 text-violet-600 dark:text-violet-400" />
                             </div>
                             <div>
-                                <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">Modèle de Contrat (PDF)</CardTitle>
-                                <CardDescription className="text-sm mt-1 text-slate-500">Personnalisez le texte statique de vos contrats générés automatiquement.</CardDescription>
+                                <CardTitle className="text-lg font-bold text-slate-900 dark:text-white">{t('contractTemplate')}</CardTitle>
+                                <CardDescription className="text-sm mt-1 text-slate-500">{t('contractTemplateDesc')}</CardDescription>
                             </div>
                         </div>
                     </CardHeader>
                     <CardContent className="pt-8">
                         <div className="flex flex-col md:flex-row gap-8">
                             <div className="flex-1 space-y-2">
-                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">Texte du Contrat de Travail</label>
+                                <label className="text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider block">{t('contractBodyLabel')}</label>
                                 <Textarea
                                     className="min-h-[300px] font-mono text-sm bg-slate-50 dark:bg-slate-950 border-slate-200 dark:border-slate-800 p-4 leading-relaxed resize-y"
-                                    placeholder="Laissez vide pour utiliser le modèle standard par défaut. Mettez le corps du texte ici..."
+                                    placeholder={t('contractBodyPlaceholder')}
                                     value={form.contractTemplate}
                                     onChange={e => setForm({ ...form, contractTemplate: e.target.value })}
                                 />
-                                <p className="text-xs text-slate-500 mt-2">Ce texte remplacera le corps de l'article 1, 2 et 3. L'en-tête, les signatures et le pied de page restent gérés par le système.</p>
+                                <p className="text-xs text-slate-500 mt-2">{t('contractBodyHint')}</p>
                             </div>
 
                             <div className="w-full md:w-64 shrink-0 bg-slate-50 dark:bg-slate-950 p-5 rounded-2xl border border-slate-200 dark:border-slate-800">
                                 <h4 className="text-sm font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
                                     <AlertTriangle className="h-4 w-4 text-amber-500" />
-                                    Variables Magiques
+                                    {t('magicVariables')}
                                 </h4>
-                                <p className="text-xs text-slate-500 mb-4">Utilisez ces tags exacts, ils seront remplacés lors de la génération PDF :</p>
+                                <p className="text-xs text-slate-500 mb-4">{t('magicVariablesDesc')}</p>
                                 <ul className="space-y-3 font-mono text-[11px] text-slate-600 dark:text-slate-400">
-                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{EMPLOYEE_NAME}}"}</code><br />Nom de l'employé</li>
-                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{POSITION}}"}</code><br />Poste</li>
-                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{DEPARTMENT}}"}</code><br />Département</li>
-                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{START_DATE}}"}</code><br />Date d'embauche</li>
-                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{CONTRACT_TYPE}}"}</code><br />CDI, CDD, etc.</li>
-                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{SALARY}}"}</code><br />Salaire formaté</li>
-                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{CURRENCY}}"}</code><br />Devise (ex: MRU)</li>
+                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{EMPLOYEE_NAME}}"}</code><br />{t('varEmployeeName')}</li>
+                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{POSITION}}"}</code><br />{t('varPosition')}</li>
+                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{DEPARTMENT}}"}</code><br />{t('varDepartment')}</li>
+                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{START_DATE}}"}</code><br />{t('varStartDate')}</li>
+                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{CONTRACT_TYPE}}"}</code><br />{t('varContractType')}</li>
+                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{SALARY}}"}</code><br />{t('varSalary')}</li>
+                                    <li><code className="text-blue-600 dark:text-blue-400 font-bold bg-blue-50 dark:bg-blue-950 px-1 py-0.5 rounded">{"{{CURRENCY}}"}</code><br />{t('varCurrency')}</li>
                                 </ul>
 
                                 <div className="mt-6 pt-6 border-t border-slate-200 dark:border-slate-800">
@@ -1025,7 +1027,7 @@ function TenantSettings() {
                                         disabled={previewing}
                                     >
                                         {previewing ? <Loader2 className="h-4 w-4 animate-spin" /> : <Eye className="h-4 w-4" />}
-                                        Prévisualiser le PDF
+                                        {t('previewPdf')}
                                     </Button>
                                 </div>
                             </div>
@@ -1037,12 +1039,12 @@ function TenantSettings() {
             <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.3 }}
                 className="flex items-center justify-between p-6 bg-slate-900 border border-slate-800 rounded-2xl shadow-xl shadow-slate-900/10">
                 <div>
-                    <h3 className="text-white font-bold text-lg tracking-tight">Prêt à déployer ?</h3>
-                    <p className="text-slate-400 text-sm mt-1">N'oubliez pas d'informer vos employés des changements de règles RH.</p>
+                    <h3 className="text-white font-bold text-lg tracking-tight">{t('readyToDeploy')}</h3>
+                    <p className="text-slate-400 text-sm mt-1">{t('remindEmployees')}</p>
                 </div>
                 <Button type="submit" disabled={saving} className="h-12 px-8 rounded-xl font-bold bg-blue-600 hover:bg-blue-500 text-white shadow-[0_0_20px_rgba(37,99,235,0.3)] hover:shadow-[0_0_25px_rgba(59,130,246,0.5)] transition-all hover:scale-[1.02] active:scale-[0.98]">
                     {saving && <Loader2 className="h-5 w-5 animate-spin mr-2" />}
-                    Confirmer les modifications
+                    {t('confirmChanges')}
                 </Button>
             </motion.div>
         </form>
@@ -1053,6 +1055,169 @@ function TenantSettings() {
 // =========================================
 // TAX CONFIG CARD (CNSS / ITS)
 // =========================================
+function OrgLevelsCard() {
+    const t = useTranslations('orgLevels');
+    const tc = useTranslations('common');
+    const [levels, setLevels] = React.useState<any[]>([]);
+    const [loading, setLoading] = React.useState(true);
+    const [showForm, setShowForm] = React.useState(false);
+    const [editingId, setEditingId] = React.useState<string | null>(null);
+    const [form, setForm] = React.useState({ name: '', rank: '', description: '' });
+    const [saving, setSaving] = React.useState(false);
+    const [deleteId, setDeleteId] = React.useState<string | null>(null);
+
+    const fetchLevels = async () => {
+        try {
+            const res = await api.get('/org-levels');
+            setLevels(res.data?.data || []);
+        } catch { /* silent */ }
+        setLoading(false);
+    };
+
+    React.useEffect(() => { fetchLevels(); }, []);
+
+    const resetForm = () => { setForm({ name: '', rank: '', description: '' }); setEditingId(null); setShowForm(false); };
+
+    const openCreate = () => {
+        const nextRank = levels.length > 0 ? Math.max(...levels.map(l => l.rank)) + 1 : 1;
+        setForm({ name: '', rank: String(nextRank), description: '' });
+        setEditingId(null);
+        setShowForm(true);
+    };
+
+    const openEdit = (level: any) => {
+        setForm({ name: level.name, rank: String(level.rank), description: level.description || '' });
+        setEditingId(level.id);
+        setShowForm(true);
+    };
+
+    const handleSubmit = async () => {
+        if (!form.name || !form.rank) return;
+        setSaving(true);
+        try {
+            if (editingId) {
+                await api.put(`/org-levels/${editingId}`, { name: form.name, rank: Number(form.rank), description: form.description || undefined });
+                toast.success(t('updateSuccess'));
+            } else {
+                await api.post('/org-levels', { name: form.name, rank: Number(form.rank), description: form.description || undefined });
+                toast.success(t('createSuccess'));
+            }
+            resetForm();
+            fetchLevels();
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || 'Erreur');
+        } finally { setSaving(false); }
+    };
+
+    const handleDelete = async () => {
+        if (!deleteId) return;
+        try {
+            await api.delete(`/org-levels/${deleteId}`);
+            toast.success(t('deleteSuccess'));
+            setDeleteId(null);
+            fetchLevels();
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || 'Erreur');
+        }
+    };
+
+    return (
+        <Card className="border-0 shadow-lg bg-white/80 backdrop-blur-sm">
+            <CardHeader>
+                <div className="flex items-center justify-between">
+                    <div>
+                        <CardTitle className="flex items-center gap-2 text-base">
+                            <Briefcase className="h-5 w-5 text-indigo-600" />
+                            {t('title')}
+                        </CardTitle>
+                        <CardDescription>{t('subtitle')}</CardDescription>
+                    </div>
+                    <Button size="sm" onClick={openCreate} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5">
+                        <Plus className="h-3.5 w-3.5" /> {t('addLevel')}
+                    </Button>
+                </div>
+            </CardHeader>
+            <CardContent className="space-y-3">
+                {loading ? (
+                    <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-indigo-500" /></div>
+                ) : levels.length === 0 ? (
+                    <div className="text-center py-8 border-2 border-dashed rounded-xl bg-slate-50">
+                        <Briefcase className="h-8 w-8 text-slate-300 mx-auto mb-2" />
+                        <p className="text-sm font-medium text-slate-500">{t('noLevels')}</p>
+                        <p className="text-xs text-slate-400 mt-1">{t('examples')}</p>
+                    </div>
+                ) : (
+                    <div className="space-y-2">
+                        {levels.map((level, idx) => (
+                            <div key={level.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 group hover:bg-slate-100 transition-colors">
+                                <div className="h-8 w-8 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-700 font-bold text-sm shrink-0">
+                                    {level.rank}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800">{level.name}</p>
+                                    <p className="text-xs text-slate-500">
+                                        {level.description || t('employeeCount', { count: level._count?.employees || 0 })}
+                                    </p>
+                                </div>
+                                {idx < levels.length - 1 && (
+                                    <ChevronRight className="h-4 w-4 text-slate-300 shrink-0 hidden sm:block" />
+                                )}
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => openEdit(level)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit className="h-3.5 w-3.5" /></button>
+                                    <button onClick={() => setDeleteId(level.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="h-3.5 w-3.5" /></button>
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                {/* Inline Form */}
+                <AnimatePresence>
+                    {showForm && (
+                        <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: 'auto' }} exit={{ opacity: 0, height: 0 }} className="overflow-hidden">
+                            <div className="p-4 bg-indigo-50 border border-indigo-100 rounded-xl space-y-3 mt-2">
+                                <div className="grid grid-cols-4 gap-3">
+                                    <div className="col-span-2">
+                                        <label className="text-xs font-medium text-slate-600">{t('name')} *</label>
+                                        <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t('namePlaceholder')} className="mt-1" />
+                                    </div>
+                                    <div>
+                                        <label className="text-xs font-medium text-slate-600">{t('rank')} *</label>
+                                        <Input type="number" min="1" value={form.rank} onChange={e => setForm({ ...form, rank: e.target.value })} className="mt-1" />
+                                        <p className="text-[10px] text-slate-400 mt-0.5">{t('rankHint')}</p>
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="text-xs font-medium text-slate-600">{t('description')}</label>
+                                    <Input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder={t('descriptionPlaceholder')} className="mt-1" />
+                                </div>
+                                <div className="flex gap-2 justify-end">
+                                    <Button variant="outline" size="sm" onClick={resetForm}>{tc('cancel')}</Button>
+                                    <Button size="sm" onClick={handleSubmit} disabled={saving || !form.name || !form.rank} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                                        {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                                        {editingId ? tc('save') : tc('create')}
+                                    </Button>
+                                </div>
+                            </div>
+                        </motion.div>
+                    )}
+                </AnimatePresence>
+
+                {/* Delete confirm */}
+                {deleteId && (
+                    <div className="flex items-center justify-between p-3 bg-red-50 border border-red-100 rounded-xl">
+                        <p className="text-sm text-red-700">{t('deleteConfirm')}</p>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setDeleteId(null)}>{tc('cancel')}</Button>
+                            <Button variant="destructive" size="sm" onClick={handleDelete}>{tc('delete')}</Button>
+                        </div>
+                    </div>
+                )}
+            </CardContent>
+        </Card>
+    );
+}
+
 function TaxConfigCard() {
     const t = useTranslations('taxConfig');
     const tc = useTranslations('common');
@@ -1093,7 +1258,7 @@ function TaxConfigCard() {
             });
             toast.success(t('saved'));
         } catch (err: any) {
-            toast.error(err.response?.data?.error || 'Erreur');
+            toast.error(err.response?.data?.error || tc('error'));
         } finally {
             setSaving(false);
         }
@@ -1359,7 +1524,7 @@ function AttendanceConfigCard() {
                                 </div>
                             ))}
                         </div>
-                        <p className="text-[11px] text-slate-400">0 = pas de déduction, 0.25 = 1/4 journée, 0.5 = 1/2 journée, 1 = journée complète</p>
+                        <p className="text-[11px] text-slate-400">{t('tieredHint')}</p>
                     </div>
                 )}
 
@@ -1390,7 +1555,7 @@ export default function SettingsPage() {
         return (
             <div className="flex flex-col items-center justify-center py-20 text-slate-400 gap-2">
                 <Settings className="h-10 w-10 text-slate-200" />
-                <p className="font-medium">Accès réservé aux administrateurs</p>
+                <p className="font-medium">{t('accessDenied')}</p>
             </div>
         );
     }

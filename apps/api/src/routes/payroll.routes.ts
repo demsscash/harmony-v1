@@ -3,6 +3,7 @@ import {
     getPayrolls,
     getPayrollById,
     createPayroll,
+    updatePayroll,
     updatePayrollStatus,
     deletePayroll,
     generatePayslips
@@ -60,6 +61,7 @@ router.get('/:id', requireRole([UserRole.ADMIN, UserRole.HR]), getPayrollById);
 
 // Opérations de gestion de paie
 router.post('/', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'CREATE_PAYROLL', resource: 'Payroll' }), validate(createPayrollSchema), createPayroll);
+router.put('/:id', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'UPDATE_PAYROLL', resource: 'Payroll' }), updatePayroll);
 router.put('/:id/status', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'UPDATE_PAYROLL_STATUS', resource: 'Payroll' }), validate(updatePayrollStatusSchema), updatePayrollStatus);
 // Alias pour le frontend qui appelle PATCH /:id/validate
 router.patch('/:id/validate', requireRole([UserRole.ADMIN, UserRole.HR]), async (req, res, next) => {
