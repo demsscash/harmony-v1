@@ -11,7 +11,6 @@ export class EmployeeService {
             include: {
                 department: true,
                 grade: true,
-                orgLevel: true,
             },
             orderBy: { createdAt: 'desc' }
         });
@@ -23,7 +22,6 @@ export class EmployeeService {
             include: {
                 department: true,
                 grade: true,
-                orgLevel: true,
                 manager: { select: { firstName: true, lastName: true, position: true } },
                 documents: true,
                 advantages: { include: { advantage: true } },

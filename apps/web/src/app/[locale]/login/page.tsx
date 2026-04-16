@@ -33,7 +33,6 @@ export default function LoginPage() {
     const t = useTranslations('login');
     const tc = useTranslations('common');
     const [isLoading, setIsLoading] = useState(false);
-    const [loginMode, setLoginMode] = useState<'super' | 'tenant'>('super');
     const [authMethod, setAuthMethod] = useState<'email' | 'phone'>('email');
     const [successAnim, setSuccessAnim] = useState(false);
 
@@ -58,25 +57,20 @@ export default function LoginPage() {
                 ? { email: data.email, password: data.password }
                 : { phone: data.phone, password: data.password };
 
-            let response;
-            if (loginMode === 'super') {
-                response = await api.post('/auth/super-login', credentials);
-            } else {
-                if (!data.subdomain?.trim()) {
-                    toast.error(t('enterWorkspace'));
-                    setIsLoading(false);
-                    return;
-                }
-                response = await api.post('/auth/login', credentials, {
-                    headers: { 'X-Tenant-Subdomain': data.subdomain.trim() },
-                });
+            if (!data.subdomain?.trim()) {
+                toast.error(t('enterWorkspace'));
+                setIsLoading(false);
+                return;
             }
+            const response = await api.post('/auth/login', credentials, {
+                headers: { 'X-Tenant-Subdomain': data.subdomain.trim() },
+            });
 
             if (response.data.success) {
                 const { user, accessToken } = response.data.data;
                 const enrichedUser = {
                     ...user,
-                    tenantSubdomain: user.tenantSubdomain || (loginMode === 'tenant' ? data.subdomain?.trim() : undefined),
+                    tenantSubdomain: user.tenantSubdomain || data.subdomain?.trim(),
                 };
 
                 Cookies.set('accessToken', accessToken, { expires: 1 / 24, secure: window.location.protocol === 'https:', sameSite: 'lax' });
@@ -144,43 +138,26 @@ export default function LoginPage() {
                             )}
                         </AnimatePresence>
 
-                        {/* Mode Selector */}
-                        <div className="flex p-1.5 bg-slate-800/50 rounded-xl mb-8 border border-white/5">
-                            <button type="button" onClick={() => setLoginMode('super')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 ${loginMode === 'super' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}>
-                                <Shield className="h-4 w-4" /> {t('superAdmin')}
-                            </button>
-                            <button type="button" onClick={() => setLoginMode('tenant')}
-                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-lg text-sm font-semibold transition-all duration-300 ${loginMode === 'tenant' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-slate-200 hover:bg-white/5'}`}>
-                                <Building2 className="h-4 w-4" /> {t('organization')}
-                            </button>
-                        </div>
-
                         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-                            <AnimatePresence mode="popLayout">
-                                {loginMode === 'tenant' && (
-                                    <motion.div initial={{ opacity: 0, height: 0, scale: 0.95 }} animate={{ opacity: 1, height: 'auto', scale: 1 }} exit={{ opacity: 0, height: 0, scale: 0.95 }} transition={{ duration: 0.3 }}
-                                        className="space-y-1.5"
-                                    >
-                                        <Label className="text-xs font-semibold text-slate-400 uppercase tracking-widest ml-1">{t('workspace')}</Label>
-                                        <div className="relative group">
-                                            <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-                                                <Globe className="h-4 w-4 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
-                                            </div>
-                                            <div className="flex">
-                                                <Input
-                                                    placeholder="acme"
-                                                    autoComplete="off" disabled={isLoading} {...form.register('subdomain')}
-                                                    className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-500 placeholder:italic focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-r-none rounded-l-xl transition-all"
-                                                />
-                                                <span className="h-12 px-4 flex items-center text-sm font-medium text-slate-400 bg-slate-800/80 border border-l-0 border-white/10 rounded-r-xl whitespace-nowrap">
-                                                    .harmony.mr
-                                                </span>
-                                            </div>
-                                        </div>
-                                    </motion.div>
-                                )}
-                            </AnimatePresence>
+                            {/* Workspace / Tenant */}
+                            <div className="space-y-1.5">
+                                <Label className="text-xs font-semibold text-slate-400 uppercase tracking-widest ml-1">{t('workspace')}</Label>
+                                <div className="relative group">
+                                    <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+                                        <Globe className="h-4 w-4 text-slate-500 group-focus-within:text-blue-500 transition-colors" />
+                                    </div>
+                                    <div className="flex">
+                                        <Input
+                                            placeholder="acme"
+                                            autoComplete="off" disabled={isLoading} {...form.register('subdomain')}
+                                            className="pl-10 h-12 bg-slate-900/50 border-white/10 text-white placeholder:text-slate-500 placeholder:italic focus-visible:ring-blue-500/50 focus-visible:border-blue-500 rounded-r-none rounded-l-xl transition-all"
+                                        />
+                                        <span className="h-12 px-4 flex items-center text-sm font-medium text-slate-400 bg-slate-800/80 border border-l-0 border-white/10 rounded-r-xl whitespace-nowrap">
+                                            .harmony.mr
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
 
                             {/* Toggle Email / Téléphone */}
                             <div className="flex p-1 bg-slate-800/30 rounded-lg border border-white/5">

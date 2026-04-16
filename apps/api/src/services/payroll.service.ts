@@ -170,6 +170,10 @@ export class PayrollService {
         const cnssEmployeeRate = Number(taxConfig?.cnssEmployeeRate ?? 0.01);
         const cnssEmployerRate = Number(taxConfig?.cnssEmployerRate ?? 0.13);
         const cnssCeiling = Number(taxConfig?.cnssCeiling ?? 70000);
+        const cnamEmployeeRate = Number(taxConfig?.cnamEmployeeRate ?? 0);
+        const cnamEmployerRate = Number(taxConfig?.cnamEmployerRate ?? 0.04);
+        const cnamCeiling = Number(taxConfig?.cnamCeiling ?? 70000);
+        const mdtRate = Number(taxConfig?.mdtRate ?? 0.0025);
         const itsBrackets = (taxConfig?.itsBrackets as any[]) ?? DEFAULT_ITS_BRACKETS;
 
         // Récupérer les employés actifs
@@ -223,22 +227,34 @@ export class PayrollService {
             // ── Heures supplémentaires ──
             const overtimePay = await OvertimeService.getMonthlyOvertimePay(tenantId, employee.id, payroll.month, payroll.year);
 
-            // ── Brut ──
-            const grossSalary = baseSalary + totalAdvantagesAmount + overtimePay;
+            // ── Absences déductibles ──
+            const daysInMonth = new Date(payroll.year, payroll.month, 0).getDate();
+            const absenceDays = await AttendanceService.getDeductibleAbsences(tenantId, employee.id, payroll.month, payroll.year);
+            const paidDays = daysInMonth - absenceDays;
 
-            // ── CNSS (taux configurables) ──
+            // ── Brut (proratisé si absences) ──
+            const fullMonthGross = baseSalary + totalAdvantagesAmount + overtimePay;
+            const grossSalary = absenceDays > 0
+                ? (fullMonthGross / daysInMonth) * paidDays
+                : fullMonthGross;
+
+            // ── Retenues salariales ──
             const cnssBasis = Math.min(grossSalary, cnssCeiling);
             const cnssEmployeeAmount = cnssBasis * cnssEmployeeRate;
-            const cnssEmployerAmount = cnssBasis * cnssEmployerRate;
 
-            // ── ITS (paliers configurables) ──
-            const taxableBasis = grossSalary - cnssEmployeeAmount;
+            const cnamBasis = Math.min(grossSalary, cnamCeiling);
+            const cnamEmployeeAmount = cnamBasis * cnamEmployeeRate;
+
+            // ITS (paliers configurables) — base = brut - CNSS salarié - CNAM salarié
+            const taxableBasis = grossSalary - cnssEmployeeAmount - cnamEmployeeAmount;
             const itsAmount = this.calculateITS(taxableBasis, itsBrackets);
 
-            // ── Déductions pointage ──
-            const attendanceDeductions = await AttendanceService.getMonthlyDeductions(
-                tenantId, employee.id, payroll.month, payroll.year
-            );
+            // ── Charges patronales (info, pas déduites du net) ──
+            const cnssEmployerAmount = cnssBasis * cnssEmployerRate;
+            const mdtAmount = grossSalary * mdtRate;
+
+            // ── Déduction absences (pour le détail) ──
+            const attendanceDeductions = absenceDays > 0 ? (fullMonthGross / daysInMonth) * absenceDays : 0;
 
             // ── Acomptes approuvés ──
             const approvedAdvances = await AdvanceService.getApprovedForPayroll(tenantId, employee.id, payroll.month, payroll.year);
@@ -255,12 +271,12 @@ export class PayrollService {
             const totalSanctionDeduction = activeSanctions.reduce((sum, s) => sum + Number(s.deductionAmount), 0);
 
             // ── Net ──
-            const netSalary = grossSalary - cnssEmployeeAmount - itsAmount - attendanceDeductions - totalAdvanceDeduction - totalSanctionDeduction;
+            const netSalary = grossSalary - cnssEmployeeAmount - cnamEmployeeAmount - itsAmount - attendanceDeductions - totalAdvanceDeduction - totalSanctionDeduction;
 
             // ── Détail déductions ──
             const deductionsDetailArr: any[] = [];
             if (attendanceDeductions > 0) {
-                deductionsDetailArr.push({ name: 'Retards/Absences', amount: attendanceDeductions, type: 'ATTENDANCE' });
+                deductionsDetailArr.push({ name: `Absences (${absenceDays} jour${absenceDays > 1 ? 's' : ''})`, amount: attendanceDeductions, type: 'ATTENDANCE' });
             }
             if (totalAdvanceDeduction > 0) {
                 deductionsDetailArr.push({ name: 'Acompte sur salaire', amount: totalAdvanceDeduction, type: 'ADVANCE' });
@@ -280,9 +296,15 @@ export class PayrollService {
                 totalAdvantages: totalAdvantagesAmount,
                 overtimePay,
                 grossSalary,
+                // Retenues salariales
                 cnssEmployee: cnssEmployeeAmount,
-                cnssEmployer: cnssEmployerAmount,
+                cnamEmployee: cnamEmployeeAmount,
                 itsAmount,
+                // Charges patronales
+                cnssEmployer: cnssEmployerAmount,
+                cnamEmployer: 0,
+                mdtAmount,
+                // Autres déductions
                 attendanceDeductions,
                 advanceDeductions: totalAdvanceDeduction,
                 otherDeductions: totalSanctionDeduction,

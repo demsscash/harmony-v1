@@ -25,7 +25,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     React.useEffect(() => {
         if (!hasHydrated) return;
 
-        const publicPages = ['/login', '/forgot-password', '/reset-password'];
+        const publicPages = ['/login', '/forgot-password', '/reset-password', '/super-admin'];
         const isPublicPage = publicPages.some(p => pathname.startsWith(p));
 
         if (!isAuthenticated && !isPublicPage) {

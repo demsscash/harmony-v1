@@ -75,9 +75,9 @@ export class ReportsService {
             }),
             // Pending leaves
             prisma.leave.count({ where: { employee: { tenantId }, status: 'PENDING' } }),
-            // This month attendance stats
+            // This month attendance stats (grouped by code)
             prisma.attendance.groupBy({
-                by: ['status'],
+                by: ['attendanceCodeId'],
                 where: {
                     tenantId,
                     date: {
@@ -118,7 +118,7 @@ export class ReportsService {
         // Attendance stats for this month
         const attendanceStats: Record<string, number> = {};
         for (const a of monthlyAttendance) {
-            attendanceStats[a.status] = a._count;
+            attendanceStats[a.attendanceCodeId] = typeof a._count === 'number' ? a._count : 0;
         }
 
         // Payroll totals

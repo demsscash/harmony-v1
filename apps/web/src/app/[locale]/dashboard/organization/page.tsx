@@ -3,66 +3,84 @@
 import * as React from 'react';
 import { Tree, TreeNode } from 'react-organizational-chart';
 import api from '@/lib/api';
-import { Loader2, User, Search, Users, ChevronDown, ChevronRight } from 'lucide-react';
+import { Loader2, User, Search, Users, Building2, UserCircle } from 'lucide-react';
 import { toast } from 'sonner';
 import { useRouter } from 'next/navigation';
 import { useTranslations } from 'next-intl';
 
-interface OrgNode {
-    id: string;
-    firstName: string;
-    lastName: string;
-    position: string;
-    photo?: string | null;
-    department?: { name: string } | null;
-    orgLevel?: { name: string; rank: number } | null;
-    managerId?: string | null;
-    children: OrgNode[];
+const TYPE_COLOR: Record<string, string> = {
+    DIRECTION: 'from-indigo-600 to-purple-700',
+    DEPARTMENT: 'from-blue-500 to-indigo-600',
+    SERVICE: 'from-cyan-500 to-blue-600',
+};
+
+const TYPE_LABEL: Record<string, string> = {
+    DIRECTION: 'Direction',
+    DEPARTMENT: 'Département',
+    SERVICE: 'Service',
+};
+
+function UnitCard({ unit }: { unit: any }) {
+    const router = useRouter();
+    const color = TYPE_COLOR[unit.type] || 'from-slate-500 to-slate-700';
+    return (
+        <div className="inline-flex flex-col items-center p-0.5">
+            <div className="bg-white border border-slate-200 rounded-2xl shadow-md hover:shadow-lg transition-all group cursor-pointer min-w-[180px] text-center overflow-hidden">
+                <div className={`bg-gradient-to-br ${color} p-3 flex flex-col items-center`}>
+                    <Building2 className="h-6 w-6 text-white" />
+                    <span className="text-[9px] font-bold text-white/80 mt-1 uppercase tracking-wider">{TYPE_LABEL[unit.type] || unit.type}</span>
+                </div>
+                <div className="px-3 py-2.5">
+                    <p className="text-sm font-bold text-slate-800 leading-tight">{unit.name}</p>
+                    {unit.manager && (
+                        <button
+                            onClick={(e) => { e.stopPropagation(); router.push(`/dashboard/employees/${unit.manager.id}`); }}
+                            className="mt-2 flex items-center gap-1.5 mx-auto bg-slate-50 hover:bg-blue-50 px-2 py-1 rounded-lg border border-slate-200 transition-colors"
+                        >
+                            {unit.manager.photo ? (
+                                <img src={unit.manager.photo} alt="" className="h-5 w-5 rounded-full object-cover" />
+                            ) : (
+                                <div className="h-5 w-5 rounded-full bg-blue-100 flex items-center justify-center text-blue-600 text-[8px] font-bold">
+                                    {unit.manager.firstName?.[0]}{unit.manager.lastName?.[0]}
+                                </div>
+                            )}
+                            <span className="text-[10px] font-semibold text-slate-700">
+                                {unit.manager.firstName} {unit.manager.lastName}
+                            </span>
+                        </button>
+                    )}
+                    <p className="text-[9px] text-slate-400 mt-1.5">{unit._count?.employees || 0} employé(s)</p>
+                </div>
+            </div>
+        </div>
+    );
 }
 
-function OrgCard({ node, viewProfileLabel }: { node: OrgNode; viewProfileLabel?: string }) {
+function EmployeeCard({ node }: { node: any }) {
     const router = useRouter();
     const initials = `${node.firstName?.[0] || ''}${node.lastName?.[0] || ''}`.toUpperCase();
-    const levelColor = node.orgLevel
-        ? node.orgLevel.rank === 1 ? 'from-indigo-600 to-purple-700'
-        : node.orgLevel.rank === 2 ? 'from-blue-500 to-indigo-600'
-        : node.orgLevel.rank <= 4 ? 'from-cyan-500 to-blue-600'
-        : 'from-slate-500 to-slate-600'
-        : 'from-blue-500 to-indigo-600';
-
     return (
         <div className="inline-flex flex-col items-center p-0.5">
             <div
-                className="bg-white border border-slate-200 rounded-2xl shadow-md hover:shadow-lg transition-all group cursor-pointer min-w-[150px] text-center overflow-hidden"
+                className="bg-white border border-slate-200 rounded-2xl shadow-md hover:shadow-lg transition-all group cursor-pointer min-w-[160px] text-center overflow-hidden"
                 onClick={() => router.push(`/dashboard/employees/${node.id}`)}
-                title={viewProfileLabel}
             >
-                <div className={`bg-gradient-to-br ${levelColor} p-3 flex justify-center group-hover:opacity-90 transition-all`}>
+                <div className="bg-gradient-to-br from-blue-500 to-indigo-600 p-3 flex justify-center group-hover:opacity-90 transition-all">
                     {node.photo ? (
-                        <img src={node.photo} alt={`${node.firstName} ${node.lastName}`} className="h-10 w-10 rounded-full object-cover border-2 border-white" />
+                        <img src={node.photo} alt="" className="h-12 w-12 rounded-full object-cover border-2 border-white" />
                     ) : (
-                        <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/50">
-                            <span className="text-white font-bold text-sm">{initials}</span>
+                        <div className="h-12 w-12 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/50">
+                            <span className="text-white font-bold">{initials}</span>
                         </div>
                     )}
                 </div>
                 <div className="px-3 py-2">
-                    <p className="text-xs font-bold text-slate-800 leading-tight group-hover:text-blue-600 transition-colors">
-                        {node.firstName} {node.lastName}
-                    </p>
-                    <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">{node.position}</p>
-                    {node.orgLevel && (
-                        <span className="inline-block mt-1 text-[9px] font-semibold text-indigo-600 bg-indigo-50 border border-indigo-100 rounded-full px-2 py-0.5">
-                            {node.orgLevel.name}
-                        </span>
-                    )}
+                    <p className="text-xs font-bold text-slate-800 leading-tight">{node.firstName} {node.lastName}</p>
+                    <p className="text-[10px] text-slate-500 mt-0.5">{node.position}</p>
                     {node.department && (
-                        <span className="inline-block mt-1 text-[9px] font-semibold text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5 ml-0.5">
+                        <span className="inline-block mt-1 text-[9px] font-semibold text-blue-600 bg-blue-50 border border-blue-100 rounded-full px-2 py-0.5">
                             {node.department.name}
                         </span>
-                    )}
-                    {node.children.length > 0 && (
-                        <p className="text-[9px] text-slate-400 mt-1">{node.children.length} subordonné(s)</p>
                     )}
                 </div>
             </div>
@@ -70,10 +88,18 @@ function OrgCard({ node, viewProfileLabel }: { node: OrgNode; viewProfileLabel?:
     );
 }
 
-function renderTree(nodes: OrgNode[], viewProfileLabel?: string) {
+function renderUnitsTree(nodes: any[]) {
     return nodes.map(node => (
-        <TreeNode key={node.id} label={<OrgCard node={node} viewProfileLabel={viewProfileLabel} />}>
-            {node.children.length > 0 && renderTree(node.children, viewProfileLabel)}
+        <TreeNode key={node.id} label={<UnitCard unit={node} />}>
+            {node.children?.length > 0 && renderUnitsTree(node.children)}
+        </TreeNode>
+    ));
+}
+
+function renderEmployeesTree(nodes: any[]) {
+    return nodes.map(node => (
+        <TreeNode key={node.id} label={<EmployeeCard node={node} />}>
+            {node.children?.length > 0 && renderEmployeesTree(node.children)}
         </TreeNode>
     ));
 }
@@ -81,9 +107,11 @@ function renderTree(nodes: OrgNode[], viewProfileLabel?: string) {
 export default function OrganizationPage() {
     const t = useTranslations('organization');
     const tc = useTranslations('common');
-    const [chartData, setChartData] = React.useState<OrgNode[]>([]);
-    const [departments, setDepartments] = React.useState<any[]>([]);
+    const [view, setView] = React.useState<'units' | 'employees'>('units');
+    const [unitsTree, setUnitsTree] = React.useState<any[]>([]);
+    const [employeesTree, setEmployeesTree] = React.useState<any[]>([]);
     const [employees, setEmployees] = React.useState<any[]>([]);
+    const [departments, setDepartments] = React.useState<any[]>([]);
     const [loading, setLoading] = React.useState(true);
     const [search, setSearch] = React.useState('');
     const [deptFilter, setDeptFilter] = React.useState('all');
@@ -91,12 +119,14 @@ export default function OrganizationPage() {
     React.useEffect(() => {
         const fetchData = async () => {
             try {
-                const [chartRes, empRes, deptRes] = await Promise.all([
-                    api.get('/org-levels/chart'),
+                const [unitsRes, empChartRes, empRes, deptRes] = await Promise.all([
+                    api.get('/orgchart/units'),
+                    api.get('/orgchart/employees'),
                     api.get('/employees'),
                     api.get('/departments'),
                 ]);
-                setChartData(chartRes.data?.data || []);
+                setUnitsTree(unitsRes.data?.data || []);
+                setEmployeesTree(empChartRes.data?.data || []);
                 setEmployees(empRes.data?.data || []);
                 setDepartments(deptRes.data?.data || []);
             } catch {
@@ -123,6 +153,8 @@ export default function OrganizationPage() {
         );
     }
 
+    const activeTree = view === 'units' ? unitsTree : employeesTree;
+
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between flex-wrap gap-4">
@@ -132,19 +164,34 @@ export default function OrganizationPage() {
                         {t('stats', { empCount: employees.length, deptCount: departments.length })}
                     </p>
                 </div>
+                {/* View toggle */}
+                <div className="inline-flex bg-slate-100 p-1 rounded-xl">
+                    <button
+                        onClick={() => setView('units')}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${view === 'units' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <Building2 className="h-4 w-4" /> Vue Unités
+                    </button>
+                    <button
+                        onClick={() => setView('employees')}
+                        className={`flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${view === 'employees' ? 'bg-white text-blue-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+                    >
+                        <UserCircle className="h-4 w-4" /> Vue Employés
+                    </button>
+                </div>
             </div>
 
             {/* Org Chart */}
-            {chartData.length > 0 ? (
+            {activeTree.length > 0 ? (
                 <div className="bg-white border border-slate-200 rounded-2xl shadow-sm overflow-auto p-8" style={{ minHeight: '400px' }}>
-                    {chartData.length === 1 ? (
+                    {activeTree.length === 1 ? (
                         <Tree
                             lineWidth="2px"
                             lineColor="#cbd5e1"
                             lineBorderRadius="6px"
-                            label={<OrgCard node={chartData[0]} viewProfileLabel={t('viewProfile')} />}
+                            label={view === 'units' ? <UnitCard unit={activeTree[0]} /> : <EmployeeCard node={activeTree[0]} />}
                         >
-                            {chartData[0].children.length > 0 && renderTree(chartData[0].children, t('viewProfile'))}
+                            {activeTree[0].children?.length > 0 && (view === 'units' ? renderUnitsTree(activeTree[0].children) : renderEmployeesTree(activeTree[0].children))}
                         </Tree>
                     ) : (
                         <Tree
@@ -153,7 +200,7 @@ export default function OrganizationPage() {
                             lineBorderRadius="6px"
                             label={
                                 <div className="inline-flex flex-col items-center p-0.5">
-                                    <div className="bg-white border border-slate-200 rounded-2xl shadow-md min-w-[140px] text-center overflow-hidden">
+                                    <div className="bg-white border border-slate-200 rounded-2xl shadow-md min-w-[160px] text-center overflow-hidden">
                                         <div className="bg-gradient-to-br from-slate-700 to-slate-900 p-3">
                                             <div className="h-10 w-10 rounded-full bg-white/20 flex items-center justify-center border-2 border-white/50 mx-auto">
                                                 <Users className="h-5 w-5 text-white" />
@@ -161,21 +208,19 @@ export default function OrganizationPage() {
                                         </div>
                                         <div className="px-3 py-2">
                                             <p className="text-xs font-bold text-slate-800">{t('orgRoot')}</p>
-                                            <p className="text-[10px] text-slate-500">{t('generalDirection')}</p>
                                         </div>
                                     </div>
                                 </div>
                             }
                         >
-                            {renderTree(chartData, t('viewProfile'))}
+                            {view === 'units' ? renderUnitsTree(activeTree) : renderEmployeesTree(activeTree)}
                         </Tree>
                     )}
                 </div>
             ) : (
                 <div className="bg-white border-2 border-dashed border-slate-200 rounded-2xl p-12 text-center">
                     <Users className="h-12 w-12 text-slate-300 mx-auto mb-3" />
-                    <p className="text-slate-500 font-medium">{t('noEmployees')}</p>
-                    <p className="text-xs text-slate-400 mt-1">{t('noManager')}</p>
+                    <p className="text-slate-500 font-medium">{view === 'units' ? 'Aucune unité organisationnelle' : t('noEmployees')}</p>
                 </div>
             )}
 
@@ -209,15 +254,16 @@ export default function OrganizationPage() {
                 <div className="divide-y divide-slate-100">
                     {filteredEmployees.map(emp => (
                         <a key={emp.id} href={`/dashboard/employees/${emp.id}`} className="flex items-center gap-4 p-4 hover:bg-slate-50 transition-colors group">
-                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-                                {emp.firstName?.[0]}{emp.lastName?.[0]}
-                            </div>
+                            {emp.photo ? (
+                                <img src={emp.photo} alt="" className="h-10 w-10 rounded-full object-cover border border-slate-200 shrink-0" />
+                            ) : (
+                                <div className="h-10 w-10 rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
+                                    {emp.firstName?.[0]}{emp.lastName?.[0]}
+                                </div>
+                            )}
                             <div className="flex-1 min-w-0">
                                 <p className="font-semibold text-slate-800 truncate group-hover:text-blue-600 transition-colors">{emp.firstName} {emp.lastName}</p>
-                                <p className="text-xs text-slate-500 truncate">
-                                    {emp.position}
-                                    {emp.orgLevel && <span className="text-indigo-500 ml-1">· {emp.orgLevel.name}</span>}
-                                </p>
+                                <p className="text-xs text-slate-500 truncate">{emp.position}</p>
                             </div>
                             <div className="text-right">
                                 <p className="text-xs font-semibold text-slate-600">{emp.department?.name || '—'}</p>

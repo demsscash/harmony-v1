@@ -30,7 +30,7 @@ import expenseRoutes from './routes/expense.routes';
 import reportsRoutes from './routes/reports.routes';
 import evaluationRoutes from './routes/evaluation.routes';
 import sanctionRoutes from './routes/sanction.routes';
-import orgLevelRoutes from './routes/orglevel.routes';
+import orgChartRoutes from './routes/orgchart.routes';
 import { performanceMiddleware } from './middleware/performance';
 
 dotenv.config();
@@ -91,7 +91,7 @@ app.use('/api/expenses', expenseRoutes);
 app.use('/api/reports', reportsRoutes);
 app.use('/api/evaluations', evaluationRoutes);
 app.use('/api/sanctions', sanctionRoutes);
-app.use('/api/org-levels', orgLevelRoutes);
+app.use('/api/orgchart', orgChartRoutes);
 
 // Basic health check
 app.get('/health', (req, res) => {

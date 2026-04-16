@@ -173,7 +173,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             items: [
                 { label: t('users'), href: '/dashboard/users', icon: UserCog, desc: td('users') },
                 { label: t('gradesAdvantages'), href: '/dashboard/grades', icon: Award, desc: td('gradesAdvantages') },
-                { label: t('orgLevels'), href: '/dashboard/org-levels', icon: Network, desc: td('orgLevels') },
                 { label: t('reports'), href: '/dashboard/reports', icon: BarChart3, desc: td('reports') },
                 ...(user?.role === 'ADMIN' || user?.permissions?.includes('settings') ? [{ label: t('settings'), href: '/dashboard/settings', icon: Settings, desc: td('settings') }] : []),
             ]

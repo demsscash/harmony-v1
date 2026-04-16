@@ -95,7 +95,6 @@ export default function EditEmployeePage() {
                             hireDate: emp.hireDate ? new Date(emp.hireDate).toISOString().split('T')[0] : new Date().toISOString().split('T')[0],
                             status: emp.status || 'ACTIVE',
                             managerId: emp.managerId || '',
-                            orgLevelId: emp.orgLevelId || '',
                             photo: emp.photo || '',
                         });
                         if (emp.photo) setPhotoPreview(emp.photo);
@@ -119,7 +118,6 @@ export default function EditEmployeePage() {
             departmentId: data.departmentId === "" ? undefined : data.departmentId,
             managerId: data.managerId === "" ? undefined : data.managerId,
             gradeId: data.gradeId === "" ? undefined : data.gradeId,
-            orgLevelId: data.orgLevelId === "" ? undefined : data.orgLevelId,
         };
 
         try {
@@ -268,15 +266,17 @@ export default function EditEmployeePage() {
                                         <select {...register('departmentId')} className="w-full h-11 rounded-xl border border-input bg-slate-50 px-3 text-sm focus:ring-2 focus:ring-blue-500 outline-none">
                                             <option value="">{t('notAssignedOption')}</option>
                                             {(() => {
+                                                const TYPE_LABEL: Record<string, string> = { DIRECTION: 'Directions', DEPARTMENT: 'Départements', SERVICE: 'Services' };
+                                                const TYPE_ORDER: Record<string, number> = { DIRECTION: 1, DEPARTMENT: 2, SERVICE: 3 };
                                                 const grouped = new Map<string, any[]>();
                                                 for (const dept of departments) {
-                                                    const key = dept.orgLevel?.name || '';
+                                                    const key = dept.type || 'DEPARTMENT';
                                                     if (!grouped.has(key)) grouped.set(key, []);
                                                     grouped.get(key)!.push(dept);
                                                 }
-                                                const entries = Array.from(grouped.entries()).sort(([, a], [, b]) => (a[0]?.orgLevel?.rank ?? 999) - (b[0]?.orgLevel?.rank ?? 999));
-                                                return entries.map(([levelName, depts]) => (
-                                                    <optgroup key={levelName || 'other'} label={levelName || '—'}>
+                                                const entries = Array.from(grouped.entries()).sort(([a], [b]) => (TYPE_ORDER[a] ?? 999) - (TYPE_ORDER[b] ?? 999));
+                                                return entries.map(([type, depts]) => (
+                                                    <optgroup key={type} label={TYPE_LABEL[type] || type}>
                                                         {depts.map(dept => (
                                                             <option key={dept.id} value={dept.id}>
                                                                 {dept.parent ? `${dept.parent.name} → ` : ''}{dept.name}

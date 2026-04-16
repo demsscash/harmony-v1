@@ -34,21 +34,6 @@ export async function generatePayslipPdf(payslipId: string, tenantId: string): P
 
     const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
 
-    // Cumuls annuels : tous les bulletins du même employé pour la même année, jusqu'au mois courant
-    const ytdPayslips = await prisma.payslip.findMany({
-        where: {
-            employeeId: payslip.employeeId,
-            payroll: { year: payslip.payroll.year, month: { lte: payslip.payroll.month } },
-        },
-        include: { payroll: true },
-    });
-    const ytd = ytdPayslips.reduce((acc, p) => ({
-        gross: acc.gross + Number(p.grossSalary),
-        cnss: acc.cnss + Number(p.cnssEmployee),
-        its: acc.its + Number(p.itsAmount),
-        net: acc.net + Number(p.netSalary),
-    }), { gross: 0, cnss: 0, its: 0, net: 0 });
-
     return new Promise((resolve, reject) => {
         const doc = new PDFDocument({ size: 'A4', margin: 50 });
         const chunks: Buffer[] = [];
@@ -120,22 +105,32 @@ export async function generatePayslipPdf(payslipId: string, tenantId: string): P
         }
         y += 4;
 
-        tableHeader('COTISATIONS & DÉDUCTIONS');
-        tableRow('CNSS (part salariale 1%)', Number(payslip.cnssEmployee), currency, true);
-        tableRow('ITS (Impôt sur salaire)', Number(payslip.itsAmount), currency, true);
+        tableHeader('RETENUES SALARIALES');
+        tableRow('CNSS', Number(payslip.cnssEmployee), currency, true);
+        tableRow('CNAM', Number(payslip.cnamEmployee), currency, true);
+        tableRow('ITS', Number(payslip.itsAmount), currency, true);
         if (Number(payslip.attendanceDeductions) > 0) {
-            tableRow('Retards / Absences', Number(payslip.attendanceDeductions), currency, true);
+            tableRow('Absences', Number(payslip.attendanceDeductions), currency, true);
         }
         if (Number(payslip.advanceDeductions) > 0) {
             tableRow('Acompte sur salaire', Number(payslip.advanceDeductions), currency, true);
         }
-        // Détail des autres déductions (sanctions, etc.)
         const deducDetails = payslip.deductionsDetail ? JSON.parse(payslip.deductionsDetail as string) : [];
         for (const ded of deducDetails) {
             if (ded.type === 'SANCTION') {
                 tableRow(`  ${ded.name}`, ded.amount, currency, true);
             }
         }
+        y += 8;
+
+        // ── Charges patronales (info) ────────────────────────────
+        tableHeader('CHARGES PATRONALES (non déduites du net)');
+        tableRow('CNSS employeur', Number(payslip.cnssEmployer), currency);
+        if (Number(payslip.mdtAmount) > 0) {
+            tableRow('MDT', Number(payslip.mdtAmount), currency);
+        }
+        const totalEmployerCharges = Number(payslip.cnssEmployer) + Number(payslip.mdtAmount);
+        tableRow('Total charges patronales', totalEmployerCharges, currency);
         y += 8;
 
         // ── Net à payer ──────────────────────────────────────────
@@ -145,33 +140,6 @@ export async function generatePayslipPdf(payslipId: string, tenantId: string): P
         doc.fontSize(14)
             .text(`${fmtAmount(Number(payslip.netSalary))} ${currency}`, col2, y + 7, { width: 190, align: 'right' });
         y += 40;
-
-        // ── Employer contributions (info) ────────────────────────
-        if (Number(payslip.cnssEmployer) > 0) {
-            doc.fillColor('#94a3b8').font('Helvetica').fontSize(8)
-                .text(`Cotisations patronales CNSS (13%) : ${fmtAmount(Number(payslip.cnssEmployer))} ${currency} (non déduit du salaire — charge employeur)`, col1, y + 6, { width: W });
-            y += 20;
-        }
-
-        // ── Cumuls annuels ───────────────────────────────────────
-        y += 12;
-        doc.rect(col1, y, W, 18).fill('#0f172a');
-        doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(8)
-            .text(`CUMULS ${payslip.payroll.year} (Janvier → ${MONTHS_FR[payslip.payroll.month - 1]})`, col1 + 8, y + 4);
-        y += 18;
-
-        const ytdRow = (label: string, amount: number, isDeduction = false) => {
-            doc.rect(col1, y, W, 16).fill('#f8fafc').stroke('#e2e8f0');
-            doc.fillColor('#64748b').font('Helvetica').fontSize(8).text(label, col1 + 8, y + 3);
-            doc.fillColor(isDeduction ? '#dc2626' : '#0f172a').font('Helvetica-Bold').fontSize(8)
-                .text(`${fmtAmount(amount)} ${currency}`, col2, y + 3, { width: 190, align: 'right' });
-            y += 16;
-        };
-        ytdRow('Brut cumulé', ytd.gross);
-        ytdRow('CNSS cumulée', ytd.cnss, true);
-        ytdRow('ITS cumulé', ytd.its, true);
-        ytdRow('Net cumulé', ytd.net);
-        y += 8;
 
         // ── Footer ───────────────────────────────────────────────
         y += 20;
@@ -436,7 +404,7 @@ export class PdfService {
     static async generateEmployeeBadge(employeeId: string, tenantId: string): Promise<Buffer> {
         const employee = await prisma.employee.findFirst({
             where: { id: employeeId, tenantId },
-            include: { department: true, orgLevel: true }
+            include: { department: true }
         });
 
         if (!employee) {
@@ -535,7 +503,7 @@ export class PdfService {
             // ── Department & Level ────────────────────────────────────────
             const subParts: string[] = [];
             if (employee.department) subParts.push(employee.department.name);
-            if (employee.orgLevel) subParts.push(employee.orgLevel.name);
+            if (employee.department?.type) subParts.push(employee.department.type);
             if (subParts.length > 0) {
                 doc.fillColor('#94a3b8').font('Helvetica').fontSize(7.5)
                     .text(subParts.join('  ·  '), pad, y, { align: 'center', width: contentW });
@@ -581,7 +549,6 @@ export class PdfService {
             include: {
                 department: true,
                 grade: true,
-                orgLevel: true,
                 manager: { select: { firstName: true, lastName: true, position: true } },
             }
         });
@@ -665,7 +632,7 @@ export class PdfService {
                     EMAIL: employee.email || '',
                     ADDRESS: employee.address || '',
                     GRADE: employee.grade?.name || '',
-                    ORG_LEVEL: employee.orgLevel?.name || '',
+                    ORG_LEVEL: employee.department?.type || '',
                     MANAGER: employee.manager ? `${employee.manager.firstName} ${employee.manager.lastName}` : '',
                     MANAGER_POSITION: employee.manager?.position || '',
                     END_DATE: employee.contractEndDate ? new Date(employee.contractEndDate).toLocaleDateString('fr-FR') : '',
@@ -725,7 +692,7 @@ export class PdfService {
                     POSITION: employee.position,
                     DEPARTMENT_LINE: employee.department ? ` au sein du département ${employee.department.name}` : '',
                     GRADE_LINE: employee.grade ? `Grade : ${employee.grade.name}` : '',
-                    ORG_LEVEL_LINE: employee.orgLevel ? `Niveau hiérarchique : ${employee.orgLevel.name}` : '',
+                    ORG_LEVEL_LINE: employee.department?.type ? `Type d'unité : ${employee.department.type}` : '',
                     MANAGER_LINE: employee.manager ? `Supérieur hiérarchique : ${employee.manager.firstName} ${employee.manager.lastName} (${employee.manager.position})` : '',
                     CIN_LINE: employee.cin ? `CIN / NNI : ${employee.cin}` : '',
                     DOB_LINE: dobFormatted,

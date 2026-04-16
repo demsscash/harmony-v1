@@ -123,7 +123,7 @@ export const updateTaxConfig = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, error: 'Tenant context missing' });
         }
 
-        const { cnssEmployeeRate, cnssEmployerRate, cnssCeiling, itsBrackets } = req.body;
+        const { cnssEmployeeRate, cnssEmployerRate, cnssCeiling, cnamEmployeeRate, cnamCeiling, mdtRate, itsBrackets } = req.body;
 
         const config = await prisma.taxConfig.upsert({
             where: { tenantId },
@@ -132,12 +132,18 @@ export const updateTaxConfig = async (req: Request, res: Response) => {
                 cnssEmployeeRate: cnssEmployeeRate ?? 0.01,
                 cnssEmployerRate: cnssEmployerRate ?? 0.13,
                 cnssCeiling: cnssCeiling ?? 70000,
+                cnamEmployeeRate: cnamEmployeeRate ?? 0,
+                cnamCeiling: cnamCeiling ?? 70000,
+                mdtRate: mdtRate ?? 0.0025,
                 itsBrackets: itsBrackets ?? DEFAULT_ITS_BRACKETS,
             },
             update: {
                 cnssEmployeeRate: cnssEmployeeRate ?? undefined,
                 cnssEmployerRate: cnssEmployerRate ?? undefined,
                 cnssCeiling: cnssCeiling ?? undefined,
+                cnamEmployeeRate: cnamEmployeeRate ?? undefined,
+                cnamCeiling: cnamCeiling ?? undefined,
+                mdtRate: mdtRate ?? undefined,
                 itsBrackets: itsBrackets ?? undefined,
             },
         });

@@ -1226,6 +1226,10 @@ function TaxConfigCard() {
     const [cnssEmployeeRate, setCnssEmployeeRate] = React.useState(1);
     const [cnssEmployerRate, setCnssEmployerRate] = React.useState(13);
     const [cnssCeiling, setCnssCeiling] = React.useState(70000);
+    const [cnamEmployeeRate, setCnamEmployeeRate] = React.useState(0);
+    const [cnamEmployerRate, setCnamEmployerRate] = React.useState(4);
+    const [cnamCeiling, setCnamCeiling] = React.useState(70000);
+    const [mdtRate, setMdtRate] = React.useState(0.25);
     const [itsBrackets, setItsBrackets] = React.useState<{ min: number; max: number | null; rate: number }[]>([
         { min: 0, max: 9000, rate: 0 },
         { min: 9000, max: 21000, rate: 15 },
@@ -1240,6 +1244,10 @@ function TaxConfigCard() {
                 setCnssEmployeeRate(Number(d.cnssEmployeeRate) * 100);
                 setCnssEmployerRate(Number(d.cnssEmployerRate) * 100);
                 setCnssCeiling(Number(d.cnssCeiling));
+                setCnamEmployeeRate(Number(d.cnamEmployeeRate ?? 0) * 100);
+                setCnamEmployerRate(Number(d.cnamEmployerRate ?? 0.04) * 100);
+                setCnamCeiling(Number(d.cnamCeiling ?? 70000));
+                setMdtRate(Number(d.mdtRate ?? 0.0025) * 100);
                 if (d.itsBrackets && Array.isArray(d.itsBrackets)) {
                     setItsBrackets(d.itsBrackets.map((b: any) => ({ min: b.min, max: b.max, rate: b.rate * 100 })));
                 }
@@ -1254,6 +1262,10 @@ function TaxConfigCard() {
                 cnssEmployeeRate: cnssEmployeeRate / 100,
                 cnssEmployerRate: cnssEmployerRate / 100,
                 cnssCeiling,
+                cnamEmployeeRate: cnamEmployeeRate / 100,
+                cnamEmployerRate: cnamEmployerRate / 100,
+                cnamCeiling,
+                mdtRate: mdtRate / 100,
                 itsBrackets: itsBrackets.map(b => ({ min: b.min, max: b.max, rate: b.rate / 100 })),
             });
             toast.success(t('saved'));
@@ -1299,19 +1311,48 @@ function TaxConfigCard() {
                 </div>
             </CardHeader>
             <CardContent className="pt-6 space-y-6">
-                {/* CNSS Rates */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700">{t('cnssEmployeeRate')}</label>
-                        <Input type="number" step="0.01" min="0" max="100" value={cnssEmployeeRate} onChange={e => setCnssEmployeeRate(parseFloat(e.target.value) || 0)} />
+                {/* CNSS */}
+                <div>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">CNSS</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-slate-700">{t('cnssEmployeeRate')}</label>
+                            <Input type="number" step="0.01" min="0" max="100" value={cnssEmployeeRate} onChange={e => setCnssEmployeeRate(parseFloat(e.target.value) || 0)} />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-slate-700">{t('cnssEmployerRate')}</label>
+                            <Input type="number" step="0.01" min="0" max="100" value={cnssEmployerRate} onChange={e => setCnssEmployerRate(parseFloat(e.target.value) || 0)} />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-slate-700">{t('cnssCeiling')}</label>
+                            <Input type="number" min="0" value={cnssCeiling} onChange={e => setCnssCeiling(parseFloat(e.target.value) || 0)} />
+                        </div>
                     </div>
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700">{t('cnssEmployerRate')}</label>
-                        <Input type="number" step="0.01" min="0" max="100" value={cnssEmployerRate} onChange={e => setCnssEmployerRate(parseFloat(e.target.value) || 0)} />
+                </div>
+
+                {/* CNAM (retenue salariale uniquement) */}
+                <div>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">CNAM (retenue salariale)</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-slate-700">{t('cnamEmployeeRate')}</label>
+                            <Input type="number" step="0.01" min="0" max="100" value={cnamEmployeeRate} onChange={e => setCnamEmployeeRate(parseFloat(e.target.value) || 0)} />
+                        </div>
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-slate-700">{t('cnamCeiling')}</label>
+                            <Input type="number" min="0" value={cnamCeiling} onChange={e => setCnamCeiling(parseFloat(e.target.value) || 0)} />
+                        </div>
                     </div>
-                    <div className="space-y-1.5">
-                        <label className="text-sm font-medium text-slate-700">{t('cnssCeiling')}</label>
-                        <Input type="number" min="0" value={cnssCeiling} onChange={e => setCnssCeiling(parseFloat(e.target.value) || 0)} />
+                </div>
+
+                {/* MDT */}
+                <div>
+                    <h4 className="text-xs font-bold text-slate-500 uppercase tracking-wider mb-3">MDT</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="space-y-1.5">
+                            <label className="text-sm font-medium text-slate-700">{t('mdtRate')}</label>
+                            <Input type="number" step="0.01" min="0" max="100" value={mdtRate} onChange={e => setMdtRate(parseFloat(e.target.value) || 0)} />
+                        </div>
                     </div>
                 </div>
 
@@ -1368,173 +1409,141 @@ function TaxConfigCard() {
 // ATTENDANCE CONFIG CARD
 // =========================================
 function AttendanceConfigCard() {
-    const t = useTranslations('settings');
+    const t = useTranslations('attendance');
     const tc = useTranslations('common');
+    const [codes, setCodes] = React.useState<any[]>([]);
     const [loading, setLoading] = React.useState(true);
+    const [showForm, setShowForm] = React.useState(false);
+    const [editingId, setEditingId] = React.useState<string | null>(null);
+    const [form, setForm] = React.useState({ code: '', label: '', color: '#3b82f6', deductsSalary: false, order: 0 });
     const [saving, setSaving] = React.useState(false);
-    const [config, setConfig] = React.useState({
-        defaultStartTime: '08:00',
-        defaultEndTime: '17:00',
-        graceMinutes: 10,
-        deductionMethod: 'PER_MINUTE' as string,
-        fixedDeductionAmount: 0,
-        earlyDepartureDeduction: true,
-        tieredRules: [
-            { maxMinutes: 15, deductionFraction: 0 },
-            { maxMinutes: 30, deductionFraction: 0.25 },
-            { maxMinutes: 60, deductionFraction: 0.5 },
-            { maxMinutes: 9999, deductionFraction: 1 },
-        ] as Array<{ maxMinutes: number; deductionFraction: number }>,
-    });
+    const [deleteId, setDeleteId] = React.useState<string | null>(null);
 
-    React.useEffect(() => {
-        api.get('/attendance/config').then(res => {
-            if (res.data?.data) {
-                const d = res.data.data;
-                setConfig({
-                    defaultStartTime: d.defaultStartTime || '08:00',
-                    defaultEndTime: d.defaultEndTime || '17:00',
-                    graceMinutes: d.graceMinutes ?? 10,
-                    deductionMethod: d.deductionMethod || 'PER_MINUTE',
-                    fixedDeductionAmount: Number(d.fixedDeductionAmount || 0),
-                    earlyDepartureDeduction: d.earlyDepartureDeduction ?? true,
-                    tieredRules: d.tieredRules || config.tieredRules,
-                });
-            }
-        }).catch(() => {}).finally(() => setLoading(false));
-    }, []);
+    const fetchCodes = () => {
+        api.get('/attendance/codes').then(res => setCodes(res.data?.data || [])).catch(() => {}).finally(() => setLoading(false));
+    };
+    React.useEffect(() => { fetchCodes(); }, []);
 
-    const handleSave = async () => {
+    const resetForm = () => { setForm({ code: '', label: '', color: '#3b82f6', deductsSalary: false, order: 0 }); setEditingId(null); setShowForm(false); };
+
+    const openEdit = (c: any) => {
+        setForm({ code: c.code, label: c.label, color: c.color, deductsSalary: c.deductsSalary, order: c.order });
+        setEditingId(c.id);
+        setShowForm(true);
+    };
+
+    const handleSubmit = async () => {
+        if (!form.code || !form.label) return;
         setSaving(true);
         try {
-            await api.put('/attendance/config', {
-                ...config,
-                graceMinutes: Number(config.graceMinutes),
-                fixedDeductionAmount: Number(config.fixedDeductionAmount),
-                tieredRules: config.deductionMethod === 'TIERED' ? config.tieredRules : undefined,
-            });
-            toast.success(t('attendanceConfigSaved'));
-        } catch {
-            toast.error(t('attendanceConfigError'));
-        } finally { setSaving(false); }
+            if (editingId) {
+                await api.put(`/attendance/codes/${editingId}`, form);
+                toast.success(t('codeUpdated'));
+            } else {
+                await api.post('/attendance/codes', { ...form, order: codes.length + 1 });
+                toast.success(t('codeCreated'));
+            }
+            resetForm();
+            fetchCodes();
+        } catch (err: any) { toast.error(err.response?.data?.error || 'Erreur'); }
+        finally { setSaving(false); }
     };
 
-    const updateTier = (index: number, field: string, value: number) => {
-        const newRules = [...config.tieredRules];
-        (newRules[index] as any)[field] = value;
-        setConfig({ ...config, tieredRules: newRules });
+    const handleDelete = async () => {
+        if (!deleteId) return;
+        try {
+            await api.delete(`/attendance/codes/${deleteId}`);
+            toast.success(t('codeDeleted'));
+            setDeleteId(null);
+            fetchCodes();
+        } catch (err: any) { toast.error(err.response?.data?.error || 'Erreur'); }
     };
-
-    const addTier = () => {
-        setConfig({ ...config, tieredRules: [...config.tieredRules, { maxMinutes: 120, deductionFraction: 1 }] });
-    };
-
-    const removeTier = (index: number) => {
-        setConfig({ ...config, tieredRules: config.tieredRules.filter((_, i) => i !== index) });
-    };
-
-    if (loading) return <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-blue-600" /></div>;
 
     return (
         <Card className="border-slate-200 bg-white shadow-sm overflow-hidden">
             <CardHeader className="bg-slate-50 border-b border-slate-100 pb-5">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
-                        <Clock className="h-5 w-5 text-blue-600" />
+                <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                        <div className="h-10 w-10 rounded-xl bg-blue-500/10 border border-blue-500/20 flex items-center justify-center">
+                            <Clock className="h-5 w-5 text-blue-600" />
+                        </div>
+                        <div>
+                            <CardTitle className="text-lg">{t('codes')}</CardTitle>
+                            <CardDescription>{t('codesSubtitle')}</CardDescription>
+                        </div>
                     </div>
-                    <div>
-                        <CardTitle className="text-lg">{t('attendanceConfig')}</CardTitle>
-                        <CardDescription>{t('attendanceConfigDesc')}</CardDescription>
-                    </div>
+                    <Button size="sm" onClick={() => { resetForm(); setShowForm(true); }} className="bg-blue-600 hover:bg-blue-700 text-white gap-1.5">
+                        <Plus className="h-3.5 w-3.5" /> {t('addCode')}
+                    </Button>
                 </div>
             </CardHeader>
-            <CardContent className="pt-5 space-y-5">
-                {/* Horaires par défaut */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    <div>
-                        <label className="text-xs font-semibold text-slate-600 mb-1 block">{t('defaultStartTime')}</label>
-                        <Input type="time" value={config.defaultStartTime} onChange={e => setConfig({ ...config, defaultStartTime: e.target.value })} />
-                    </div>
-                    <div>
-                        <label className="text-xs font-semibold text-slate-600 mb-1 block">{t('defaultEndTime')}</label>
-                        <Input type="time" value={config.defaultEndTime} onChange={e => setConfig({ ...config, defaultEndTime: e.target.value })} />
-                    </div>
-                    <div>
-                        <label className="text-xs font-semibold text-slate-600 mb-1 block">{t('graceMinutes')}</label>
-                        <Input type="number" min={0} value={config.graceMinutes} onChange={e => setConfig({ ...config, graceMinutes: Number(e.target.value) })} />
-                    </div>
-                </div>
-
-                {/* Méthode de déduction */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <div>
-                        <label className="text-xs font-semibold text-slate-600 mb-1 block">{t('deductionMethod')}</label>
-                        <select
-                            value={config.deductionMethod}
-                            onChange={e => setConfig({ ...config, deductionMethod: e.target.value })}
-                            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white"
-                        >
-                            <option value="PER_MINUTE">{t('perMinute')}</option>
-                            <option value="TIERED">{t('tiered')}</option>
-                            <option value="FIXED">{t('fixed')}</option>
-                        </select>
-                    </div>
-
-                    {config.deductionMethod === 'FIXED' && (
-                        <div>
-                            <label className="text-xs font-semibold text-slate-600 mb-1 block">{t('fixedAmount')}</label>
-                            <Input type="number" min={0} value={config.fixedDeductionAmount} onChange={e => setConfig({ ...config, fixedDeductionAmount: Number(e.target.value) })} />
-                        </div>
-                    )}
-
-                    <div className="flex items-center gap-3">
-                        <input
-                            type="checkbox"
-                            checked={config.earlyDepartureDeduction}
-                            onChange={e => setConfig({ ...config, earlyDepartureDeduction: e.target.checked })}
-                            className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
-                        />
-                        <label className="text-sm text-slate-700">{t('earlyDepartureDeduction')}</label>
-                    </div>
-                </div>
-
-                {/* Règles par paliers */}
-                {config.deductionMethod === 'TIERED' && (
-                    <div className="space-y-3">
-                        <div className="flex items-center justify-between">
-                            <label className="text-xs font-semibold text-slate-600">{t('tieredRules')}</label>
-                            <button onClick={addTier} className="text-xs text-blue-600 hover:text-blue-700 font-semibold flex items-center gap-1">
-                                <Plus className="h-3 w-3" /> {t('addTier')}
-                            </button>
-                        </div>
-                        <div className="space-y-2">
-                            {config.tieredRules.map((rule, i) => (
-                                <div key={i} className="flex items-center gap-3 bg-slate-50 rounded-lg p-3 border border-slate-100">
-                                    <div className="flex-1">
-                                        <label className="text-[10px] text-slate-500 uppercase">{t('maxMinutes')}</label>
-                                        <Input type="number" min={0} value={rule.maxMinutes} onChange={e => updateTier(i, 'maxMinutes', Number(e.target.value))} className="mt-1" />
-                                    </div>
-                                    <div className="flex-1">
-                                        <label className="text-[10px] text-slate-500 uppercase">{t('deductionFraction')}</label>
-                                        <Input type="number" min={0} max={1} step={0.25} value={rule.deductionFraction} onChange={e => updateTier(i, 'deductionFraction', Number(e.target.value))} className="mt-1" />
-                                    </div>
-                                    <button onClick={() => removeTier(i)} className="p-1.5 mt-4 rounded hover:bg-red-50 text-slate-400 hover:text-red-600">
-                                        <Trash2 className="h-4 w-4" />
-                                    </button>
+            <CardContent className="pt-5 space-y-3">
+                {loading ? (
+                    <div className="flex justify-center py-6"><Loader2 className="h-5 w-5 animate-spin text-blue-500" /></div>
+                ) : (
+                    <div className="space-y-2">
+                        {codes.map(c => (
+                            <div key={c.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 group hover:bg-slate-100 transition-colors">
+                                <div className="h-8 w-8 rounded-lg flex items-center justify-center text-white font-bold text-xs shrink-0" style={{ backgroundColor: c.color }}>
+                                    {c.code}
                                 </div>
-                            ))}
-                        </div>
-                        <p className="text-[11px] text-slate-400">{t('tieredHint')}</p>
+                                <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-semibold text-slate-800">{c.label}</p>
+                                    <p className="text-xs text-slate-500">
+                                        {c.deductsSalary ? <span className="text-red-500 font-semibold">{t('deductsSalary')}</span> : <span className="text-emerald-500">{tc('no')}</span>}
+                                        {c.isDefault && <span className="ml-2 text-blue-500">({t('isDefault')})</span>}
+                                    </p>
+                                </div>
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <button onClick={() => openEdit(c)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg"><Edit className="h-3.5 w-3.5" /></button>
+                                    {!c.isDefault && (
+                                        <button onClick={() => setDeleteId(c.id)} className="p-1.5 text-red-500 hover:bg-red-50 rounded-lg"><Trash2 className="h-3.5 w-3.5" /></button>
+                                    )}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 )}
 
-                {/* Save */}
-                <div className="flex justify-end pt-2">
-                    <Button onClick={handleSave} disabled={saving} className="bg-blue-600 hover:bg-blue-700 text-white">
-                        {saving ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Save className="h-4 w-4 mr-2" />}
-                        {tc('save')}
-                    </Button>
-                </div>
+                {showForm && (
+                    <div className="p-4 bg-blue-50 border border-blue-100 rounded-xl space-y-3 mt-2">
+                        <div className="grid grid-cols-4 gap-3">
+                            <div>
+                                <label className="text-xs font-medium text-slate-600">{t('codeLabel')} *</label>
+                                <Input value={form.code} onChange={e => setForm({ ...form, code: e.target.value.toUpperCase() })} placeholder="AB" maxLength={4} className="mt-1" />
+                            </div>
+                            <div className="col-span-2">
+                                <label className="text-xs font-medium text-slate-600">{t('codeName')} *</label>
+                                <Input value={form.label} onChange={e => setForm({ ...form, label: e.target.value })} placeholder="Absence" className="mt-1" />
+                            </div>
+                            <div>
+                                <label className="text-xs font-medium text-slate-600">{t('codeColor')}</label>
+                                <input type="color" value={form.color} onChange={e => setForm({ ...form, color: e.target.value })} className="mt-1 w-full h-9 rounded-lg border border-slate-200 cursor-pointer" />
+                            </div>
+                        </div>
+                        <label className="flex items-center gap-2 cursor-pointer">
+                            <input type="checkbox" checked={form.deductsSalary} onChange={e => setForm({ ...form, deductsSalary: e.target.checked })} className="rounded" />
+                            <span className="text-sm text-slate-700 font-medium">{t('deductsSalary')}</span>
+                        </label>
+                        <div className="flex gap-2 justify-end">
+                            <Button variant="outline" size="sm" onClick={resetForm}>{tc('cancel')}</Button>
+                            <Button size="sm" onClick={handleSubmit} disabled={saving || !form.code || !form.label} className="bg-blue-600 hover:bg-blue-700 text-white">
+                                {saving ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" /> : null}
+                                {editingId ? tc('save') : tc('create')}
+                            </Button>
+                        </div>
+                    </div>
+                )}
+
+                {deleteId && (
+                    <div className="flex items-center justify-between p-3 bg-red-50 border border-red-100 rounded-xl">
+                        <p className="text-sm text-red-700">{t('deleteCodeConfirm')}</p>
+                        <div className="flex gap-2">
+                            <Button variant="outline" size="sm" onClick={() => setDeleteId(null)}>{tc('cancel')}</Button>
+                            <Button variant="destructive" size="sm" onClick={handleDelete}>{tc('delete')}</Button>
+                        </div>
+                    </div>
+                )}
             </CardContent>
         </Card>
     );

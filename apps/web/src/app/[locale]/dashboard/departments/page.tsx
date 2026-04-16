@@ -16,15 +16,30 @@ import {
     DialogFooter,
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
-import { Network, Plus, Edit, Trash2, Loader2, Users, ChevronRight, UserCircle, Building2 } from 'lucide-react';
+import { Network, Plus, Edit, Trash2, Loader2, Users, Building2 } from 'lucide-react';
 import api from '@/lib/api';
+
+type UnitType = 'DIRECTION' | 'DEPARTMENT' | 'SERVICE';
+
+const TYPE_LABEL: Record<UnitType, string> = {
+    DIRECTION: 'Direction',
+    DEPARTMENT: 'Département',
+    SERVICE: 'Service',
+};
+
+const TYPE_COLOR: Record<UnitType, string> = {
+    DIRECTION: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+    DEPARTMENT: 'bg-blue-100 text-blue-700 border-blue-200',
+    SERVICE: 'bg-cyan-100 text-cyan-700 border-cyan-200',
+};
+
+const TYPE_ORDER: Record<UnitType, number> = { DIRECTION: 1, DEPARTMENT: 2, SERVICE: 3 };
 
 export default function DepartmentsPage() {
     const t = useTranslations('departments');
     const tc = useTranslations('common');
 
     const [units, setUnits] = useState<any[]>([]);
-    const [orgLevels, setOrgLevels] = useState<any[]>([]);
     const [employees, setEmployees] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
     const [showDialog, setShowDialog] = useState(false);
@@ -34,7 +49,7 @@ export default function DepartmentsPage() {
     const [form, setForm] = useState({
         name: '',
         description: '',
-        orgLevelId: '',
+        type: 'DEPARTMENT' as UnitType,
         parentId: '',
         managerId: '',
     });
@@ -42,13 +57,11 @@ export default function DepartmentsPage() {
 
     const fetchData = async () => {
         try {
-            const [deptRes, levelsRes, empRes] = await Promise.all([
+            const [deptRes, empRes] = await Promise.all([
                 api.get('/departments'),
-                api.get('/org-levels'),
                 api.get('/employees'),
             ]);
             setUnits(deptRes.data?.data || []);
-            setOrgLevels(levelsRes.data?.data || []);
             setEmployees(empRes.data?.data || []);
         } catch { /* silent */ }
         setLoading(false);
@@ -57,7 +70,7 @@ export default function DepartmentsPage() {
     useEffect(() => { fetchData(); }, []);
 
     const resetForm = () => {
-        setForm({ name: '', description: '', orgLevelId: '', parentId: '', managerId: '' });
+        setForm({ name: '', description: '', type: 'DEPARTMENT', parentId: '', managerId: '' });
         setEditingId(null);
         setShowDialog(false);
     };
@@ -68,7 +81,7 @@ export default function DepartmentsPage() {
         setForm({
             name: unit.name,
             description: unit.description || '',
-            orgLevelId: unit.orgLevelId || '',
+            type: unit.type,
             parentId: unit.parentId || '',
             managerId: unit.managerId || '',
         });
@@ -78,13 +91,26 @@ export default function DepartmentsPage() {
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!form.name) return;
+        if (!form.name || !form.type) return;
+
+        // Client-side hierarchy validation
+        if (form.type === 'DIRECTION' && form.parentId) {
+            toast.error('Une Direction ne peut pas avoir de parent');
+            return;
+        }
+        if (form.type !== 'DIRECTION' && !form.parentId) {
+            toast.error(form.type === 'DEPARTMENT'
+                ? 'Un Département doit être rattaché à une Direction'
+                : 'Un Service doit être rattaché à un Département');
+            return;
+        }
+
         setSaving(true);
         try {
             const payload = {
                 name: form.name,
                 description: form.description || undefined,
-                orgLevelId: form.orgLevelId || null,
+                type: form.type,
                 parentId: form.parentId || null,
                 managerId: form.managerId || null,
             };
@@ -114,56 +140,41 @@ export default function DepartmentsPage() {
         }
     };
 
-    // Possible parents: units with a lower or equal rank than the selected orgLevel
+    // Possible parents based on selected type
     const possibleParents = useMemo(() => {
-        if (!form.orgLevelId) return [];
-        const selectedLevel = orgLevels.find(l => l.id === form.orgLevelId);
-        if (!selectedLevel) return [];
-        // Parents must have a lower rank number (higher in hierarchy)
-        return units.filter(u =>
-            u.orgLevel && u.orgLevel.rank < selectedLevel.rank && u.id !== editingId
-        );
-    }, [form.orgLevelId, units, orgLevels, editingId]);
+        if (form.type === 'DIRECTION') return [];
+        const requiredParentType: UnitType = form.type === 'DEPARTMENT' ? 'DIRECTION' : 'DEPARTMENT';
+        return units.filter(u => u.type === requiredParentType && u.id !== editingId);
+    }, [form.type, units, editingId]);
 
-    // Build tree for display
+    // Build tree
     const tree = useMemo(() => {
-        const rootUnits = units.filter(u => !u.parentId);
-        const getChildren = (parentId: string): any[] => {
-            return units
+        const rootUnits = units
+            .filter(u => !u.parentId)
+            .sort((a, b) => TYPE_ORDER[a.type as UnitType] - TYPE_ORDER[b.type as UnitType] || a.name.localeCompare(b.name));
+        const getChildren = (parentId: string): any[] =>
+            units
                 .filter(u => u.parentId === parentId)
+                .sort((a, b) => TYPE_ORDER[a.type as UnitType] - TYPE_ORDER[b.type as UnitType] || a.name.localeCompare(b.name))
                 .map(u => ({ ...u, children: getChildren(u.id) }));
-        };
         return rootUnits.map(u => ({ ...u, children: getChildren(u.id) }));
     }, [units]);
-
-    const levelColor = (rank: number) => {
-        if (rank <= 1) return 'bg-indigo-100 text-indigo-700 border-indigo-200';
-        if (rank <= 2) return 'bg-blue-100 text-blue-700 border-blue-200';
-        if (rank <= 3) return 'bg-cyan-100 text-cyan-700 border-cyan-200';
-        if (rank <= 4) return 'bg-teal-100 text-teal-700 border-teal-200';
-        return 'bg-slate-100 text-slate-600 border-slate-200';
-    };
 
     function UnitCard({ unit, depth = 0 }: { unit: any; depth?: number }) {
         return (
             <div style={{ marginLeft: depth * 24 }}>
-                <Card className="border-slate-200 hover:border-blue-200 hover:shadow-md transition-all group mb-2">
+                <Card className="border-slate-200 hover:border-blue-300 hover:shadow-md transition-all group mb-2">
                     <CardContent className="p-4">
                         <div className="flex items-center gap-3">
-                            {/* Level badge */}
-                            {unit.orgLevel && (
-                                <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${levelColor(unit.orgLevel.rank)} shrink-0`}>
-                                    {unit.orgLevel.name}
-                                </span>
-                            )}
+                            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold border ${TYPE_COLOR[unit.type as UnitType]} shrink-0`}>
+                                {TYPE_LABEL[unit.type as UnitType]}
+                            </span>
 
-                            {/* Name + description */}
                             <div className="flex-1 min-w-0">
                                 <h3 className="font-bold text-slate-800 group-hover:text-blue-600 transition-colors">{unit.name}</h3>
                                 {unit.description && <p className="text-xs text-slate-500 truncate">{unit.description}</p>}
                             </div>
 
-                            {/* Manager */}
                             {unit.manager && (
                                 <div className="hidden sm:flex items-center gap-2 shrink-0 bg-slate-50 rounded-lg px-3 py-1.5 border border-slate-100">
                                     {unit.manager.photo ? (
@@ -175,12 +186,11 @@ export default function DepartmentsPage() {
                                     )}
                                     <div>
                                         <p className="text-xs font-semibold text-slate-700">{unit.manager.firstName} {unit.manager.lastName}</p>
-                                        <p className="text-[10px] text-slate-400">{t('manager')}</p>
+                                        <p className="text-[10px] text-slate-400">{unit.manager.position || t('manager')}</p>
                                     </div>
                                 </div>
                             )}
 
-                            {/* Stats */}
                             <div className="flex items-center gap-3 text-xs text-slate-400 shrink-0">
                                 <span className="flex items-center gap-1"><Users className="h-3.5 w-3.5" />{unit._count?.employees || 0}</span>
                                 {(unit._count?.children || 0) > 0 && (
@@ -188,7 +198,6 @@ export default function DepartmentsPage() {
                                 )}
                             </div>
 
-                            {/* Actions */}
                             <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
                                 <button onClick={() => openEdit(unit)} className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors">
                                     <Edit className="h-3.5 w-3.5" />
@@ -198,17 +207,9 @@ export default function DepartmentsPage() {
                                 </button>
                             </div>
                         </div>
-
-                        {/* Parent info */}
-                        {unit.parent && (
-                            <p className="text-[10px] text-slate-400 mt-1.5 ml-0.5">
-                                ↑ {unit.parent.name}
-                            </p>
-                        )}
                     </CardContent>
                 </Card>
 
-                {/* Children */}
                 {unit.children?.map((child: any) => (
                     <UnitCard key={child.id} unit={child} depth={depth + 1} />
                 ))}
@@ -218,7 +219,6 @@ export default function DepartmentsPage() {
 
     return (
         <div className="space-y-6 max-w-5xl mx-auto">
-            {/* Header */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-white/60 p-5 rounded-2xl border border-slate-200/60 shadow-sm backdrop-blur-md">
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
@@ -232,7 +232,6 @@ export default function DepartmentsPage() {
                 </Button>
             </div>
 
-            {/* Tree view */}
             {loading ? (
                 <div className="flex justify-center py-16"><Loader2 className="h-8 w-8 animate-spin text-blue-500" /></div>
             ) : tree.length === 0 ? (
@@ -254,7 +253,6 @@ export default function DepartmentsPage() {
                 </div>
             )}
 
-            {/* Create / Edit Dialog */}
             <Dialog open={showDialog} onOpenChange={(open) => { if (!open) resetForm(); }}>
                 <DialogContent className="sm:max-w-[520px]">
                     <DialogHeader>
@@ -262,6 +260,20 @@ export default function DepartmentsPage() {
                         <DialogDescription>{t('subtitle')}</DialogDescription>
                     </DialogHeader>
                     <form onSubmit={handleSubmit} className="space-y-4">
+                        <div className="space-y-1.5">
+                            <Label>{t('type')} *</Label>
+                            <select
+                                value={form.type}
+                                onChange={e => setForm({ ...form, type: e.target.value as UnitType, parentId: '' })}
+                                className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none shadow-sm"
+                                required
+                            >
+                                <option value="DIRECTION">Direction</option>
+                                <option value="DEPARTMENT">Département</option>
+                                <option value="SERVICE">Service</option>
+                            </select>
+                        </div>
+
                         <div className="space-y-1.5">
                             <Label>{t('name')} *</Label>
                             <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} placeholder={t('namePlaceholder')} required />
@@ -272,39 +284,31 @@ export default function DepartmentsPage() {
                             <Input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder={t('descriptionPlaceholder')} />
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        {form.type !== 'DIRECTION' && (
                             <div className="space-y-1.5">
-                                <Label>{t('level')} *</Label>
-                                <select
-                                    value={form.orgLevelId}
-                                    onChange={e => setForm({ ...form, orgLevelId: e.target.value, parentId: '' })}
-                                    className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none shadow-sm"
-                                    required
-                                >
-                                    <option value="">{t('selectLevel')}</option>
-                                    {orgLevels.map(level => (
-                                        <option key={level.id} value={level.id}>{level.name} (Rang {level.rank})</option>
-                                    ))}
-                                </select>
-                            </div>
-
-                            <div className="space-y-1.5">
-                                <Label>{t('parent')}</Label>
+                                <Label>{t('parent')} *</Label>
                                 <select
                                     value={form.parentId}
                                     onChange={e => setForm({ ...form, parentId: e.target.value })}
                                     className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm outline-none shadow-sm"
-                                    disabled={!form.orgLevelId || possibleParents.length === 0}
+                                    required
                                 >
-                                    <option value="">{t('noParent')}</option>
+                                    <option value="">
+                                        {form.type === 'DEPARTMENT' ? 'Choisir une Direction' : 'Choisir un Département'}
+                                    </option>
                                     {possibleParents.map(p => (
-                                        <option key={p.id} value={p.id}>
-                                            {p.orgLevel?.name ? `[${p.orgLevel.name}] ` : ''}{p.name}
-                                        </option>
+                                        <option key={p.id} value={p.id}>{p.name}</option>
                                     ))}
                                 </select>
+                                {possibleParents.length === 0 && (
+                                    <p className="text-xs text-amber-600">
+                                        {form.type === 'DEPARTMENT'
+                                            ? 'Aucune Direction disponible. Créez d\'abord une Direction.'
+                                            : 'Aucun Département disponible. Créez d\'abord un Département.'}
+                                    </p>
+                                )}
                             </div>
-                        </div>
+                        )}
 
                         <div className="space-y-1.5">
                             <Label>{t('manager')}</Label>
@@ -324,7 +328,7 @@ export default function DepartmentsPage() {
 
                         <DialogFooter>
                             <Button type="button" variant="outline" onClick={resetForm}>{tc('cancel')}</Button>
-                            <Button type="submit" disabled={saving || !form.name || !form.orgLevelId} className="bg-blue-600 hover:bg-blue-700 text-white">
+                            <Button type="submit" disabled={saving || !form.name} className="bg-blue-600 hover:bg-blue-700 text-white">
                                 {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                                 {editingId ? tc('save') : tc('create')}
                             </Button>
@@ -333,7 +337,6 @@ export default function DepartmentsPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Delete Dialog */}
             <Dialog open={!!deleteId} onOpenChange={(open) => { if (!open) setDeleteId(null); }}>
                 <DialogContent>
                     <DialogHeader>

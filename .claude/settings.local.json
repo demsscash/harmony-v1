@@ -25,7 +25,8 @@
       "Bash(npx ts-node:*)",
       "Bash(lsof:*)",
       "Bash(cat -n /Users/demss/Desktop/harmony/apps/web/src/app/[locale]/dashboard/attendance/page.tsx)",
-      "Bash(pnpm --filter web build)"
+      "Bash(pnpm --filter web build)",
+      "Bash(file /Users/demss/Desktop/harmony/apps/web/src/app/[locale]/dashboard/settings/page.tsx)"
     ]
   }
 }

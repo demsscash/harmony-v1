@@ -181,7 +181,7 @@ export function DataTable<T>({
                                             className={`px-5 py-3 font-semibold text-xs uppercase tracking-wider ${isSortable ? 'cursor-pointer select-none hover:text-slate-700 transition-colors' : ''} ${col.headerClassName || col.className || ''}`}
                                             onClick={isSortable ? () => handleSort(col.key) : undefined}
                                         >
-                                            <div className="flex items-center gap-1.5">
+                                            <div className={`flex items-center gap-1.5 ${(col.headerClassName || col.className || '').includes('text-right') ? 'justify-end' : (col.headerClassName || col.className || '').includes('text-center') ? 'justify-center' : ''}`}>
                                                 {col.header}
                                                 {isSortable && (
                                                     <span className="inline-flex flex-col">

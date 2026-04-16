@@ -40,7 +40,7 @@ model Tenant {
   signatureRequests   SignatureRequest[]
   holidays            Holiday[]
   attendances         Attendance[]
-  attendanceConfig    AttendanceConfig?
+  attendanceCodes     AttendanceCode[]
   overtimeConfig      OvertimeConfig?
   overtimes           Overtime[]
   salaryAdvances      SalaryAdvance[]
@@ -49,7 +49,6 @@ model Tenant {
   evaluationCampaigns EvaluationCampaign[]
   evaluations         Evaluation[]
   sanctions           Sanction[]
-  orgLevels           OrgLevel[]
 }
 
 model TenantSettings {
@@ -119,8 +118,6 @@ model Employee {
   position        String // Poste / Fonction
   gradeId         String?
   grade           Grade?         @relation(fields: [gradeId], references: [id])
-  orgLevelId      String?
-  orgLevel        OrgLevel?      @relation(fields: [orgLevelId], references: [id])
   contractType    ContractType
   hireDate        DateTime
   contractEndDate DateTime? // Pour CDD/Stage
@@ -147,7 +144,6 @@ model Employee {
   signatures      SignatureRequest[]
   leaveBalances   LeaveBalance[]
   attendances     Attendance[]
-  schedule        EmployeeSchedule?
   overtimes       Overtime[]
   salaryAdvances  SalaryAdvance[]
   expenseReports  ExpenseReport[]
@@ -160,44 +156,28 @@ model Employee {
 }
 
 model Department {
-  id               String       @id @default(uuid())
-  tenantId         String
-  tenant           Tenant       @relation(fields: [tenantId], references: [id])
-  name             String
-  description      String?
-  managerId        String?
-  parentId         String?
-  parent           Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
-  children         Department[] @relation("DepartmentHierarchy")
-  orgLevelId       String?
-  orgLevel         OrgLevel?    @relation(fields: [orgLevelId], references: [id])
-  createdAt        DateTime     @default(now())
-  updatedAt        DateTime     @updatedAt
+  id          String       @id @default(uuid())
+  tenantId    String
+  tenant      Tenant       @relation(fields: [tenantId], references: [id])
+  name        String
+  description String?
+  type        OrgUnitType  @default(DEPARTMENT)
+  managerId   String?
+  parentId    String?
+  parent      Department?  @relation("DepartmentHierarchy", fields: [parentId], references: [id])
+  children    Department[] @relation("DepartmentHierarchy")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
 
   employees Employee[]
 
   @@unique([tenantId, name])
 }
 
-// ==========================================
-// NIVEAUX HIÉRARCHIQUES (personnalisables)
-// ==========================================
-
-model OrgLevel {
-  id          String   @id @default(uuid())
-  tenantId    String
-  tenant      Tenant   @relation(fields: [tenantId], references: [id])
-  name        String   // Ex: "Directeur Général", "Chef de Département"
-  rank        Int      // Ordre hiérarchique (1 = plus haut, ex: DG)
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  employees   Employee[]
-  departments Department[]
-
-  @@unique([tenantId, name])
-  @@index([tenantId, rank])
+enum OrgUnitType {
+  DIRECTION
+  DEPARTMENT
+  SERVICE
 }
 
 // ==========================================
@@ -376,10 +356,15 @@ model Payslip {
   totalAdvantages Decimal @db.Decimal(12, 2) // Somme des avantages
   grossSalary     Decimal @db.Decimal(12, 2) // Salaire brut
 
-  // Cotisations (législation mauritanienne)
+  // Retenues salariales
   cnssEmployee Decimal @db.Decimal(12, 2) // CNSS part salariale
-  cnssEmployer Decimal @db.Decimal(12, 2) // CNSS part patronale
+  cnamEmployee Decimal @default(0) @db.Decimal(12, 2) // CNAM part salariale
   itsAmount    Decimal @db.Decimal(12, 2) // ITS (Impôt sur les Traitements et Salaires)
+
+  // Charges patronales (non déduites du net)
+  cnssEmployer Decimal @db.Decimal(12, 2) // CNSS part patronale
+  cnamEmployer Decimal @default(0) @db.Decimal(12, 2) // CNAM part patronale
+  mdtAmount    Decimal @default(0) @db.Decimal(12, 2) // MDT
 
   // Heures supplémentaires
   overtimePay          Decimal @default(0) @db.Decimal(12, 2)
@@ -539,56 +524,43 @@ model AuditLog {
 // POINTAGE / ATTENDANCE
 // ==========================================
 
-model AttendanceConfig {
-  id                      String          @id @default(uuid())
-  tenantId                String          @unique
-  tenant                  Tenant          @relation(fields: [tenantId], references: [id])
-  defaultStartTime        String          @default("08:00") // HH:mm
-  defaultEndTime          String          @default("17:00") // HH:mm
-  graceMinutes            Int             @default(10) // Tolérance retard
-  deductionMethod         DeductionMethod @default(PER_MINUTE)
-  fixedDeductionAmount    Decimal?        @db.Decimal(12, 2) // Montant fixe si FIXED
-  tieredRules             Json? // [{maxMinutes: 15, deductionFraction: 0}, {maxMinutes: 30, deductionFraction: 0.25}, ...]
-  earlyDepartureDeduction Boolean         @default(true) // Appliquer déduction départ anticipé
-  createdAt               DateTime        @default(now())
-  updatedAt               DateTime        @updatedAt
-}
+// Codes de présence configurables par tenant (T, AB, PR, PS, RM, RS...)
+model AttendanceCode {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  code         String   // Ex: "T", "AB", "PR", "PS", "RM", "RS"
+  label        String   // Ex: "Travaillé", "Absence", "Permission"
+  color        String   @default("#3b82f6") // Couleur pour la grille
+  deductsSalary Boolean @default(false) // Déduit du salaire ?
+  isDefault    Boolean  @default(false) // Code par défaut (T)
+  order        Int      @default(0) // Ordre d'affichage
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
 
-model EmployeeSchedule {
-  id                String   @id @default(uuid())
-  employeeId        String   @unique
-  employee          Employee @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  startTime         String   @default("08:00") // HH:mm
-  endTime           String   @default("17:00") // HH:mm
-  customGraceMinutes Int?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  attendances Attendance[]
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
 }
 
 model Attendance {
-  id                    String           @id @default(uuid())
-  tenantId              String
-  tenant                Tenant           @relation(fields: [tenantId], references: [id])
-  employeeId            String
-  employee              Employee         @relation(fields: [employeeId], references: [id])
-  date                  DateTime         @db.Date
-  clockIn               DateTime? // Heure d'arrivée effective
-  clockOut              DateTime? // Heure de départ effective
-  scheduledStart        String // Snapshot heure prévue (HH:mm)
-  scheduledEnd          String // Snapshot heure prévue (HH:mm)
-  status                AttendanceStatus @default(PRESENT)
-  lateMinutes           Int              @default(0)
-  earlyDepartureMinutes Int              @default(0)
-  deductionAmount       Decimal          @default(0) @db.Decimal(12, 2)
-  note                  String?
-  recordedBy            String? // User ID du HR
-  createdAt             DateTime         @default(now())
-  updatedAt             DateTime         @updatedAt
+  id               String         @id @default(uuid())
+  tenantId         String
+  tenant           Tenant         @relation(fields: [tenantId], references: [id])
+  employeeId       String
+  employee         Employee       @relation(fields: [employeeId], references: [id])
+  date             DateTime       @db.Date
+  attendanceCodeId String
+  attendanceCode   AttendanceCode @relation(fields: [attendanceCodeId], references: [id])
+  note             String?
+  recordedBy       String?        // User ID du HR
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
 
   @@unique([tenantId, employeeId, date])
   @@index([tenantId, date])
   @@index([employeeId])
-  @@index([date])
 }
 
 // ==========================================
@@ -655,13 +627,21 @@ model SalaryAdvance {
 // ==========================================
 
 model TaxConfig {
-  id               String  @id @default(uuid())
-  tenantId         String  @unique
-  tenant           Tenant  @relation(fields: [tenantId], references: [id])
-  cnssEmployeeRate Decimal @default(0.01) @db.Decimal(5, 4)
-  cnssEmployerRate Decimal @default(0.13) @db.Decimal(5, 4)
-  cnssCeiling      Decimal @default(70000) @db.Decimal(12, 2)
-  itsBrackets      Json // [{min: 0, max: 9000, rate: 0}, {min: 9000, max: 21000, rate: 0.15}, ...]
+  id               String   @id @default(uuid())
+  tenantId         String   @unique
+  tenant           Tenant   @relation(fields: [tenantId], references: [id])
+  // CNSS
+  cnssEmployeeRate Decimal  @default(0.01) @db.Decimal(5, 4)   // Part salariale CNSS (défaut 1%)
+  cnssEmployerRate Decimal  @default(0.13) @db.Decimal(5, 4)   // Part patronale CNSS (défaut 13%)
+  cnssCeiling      Decimal  @default(70000) @db.Decimal(12, 2) // Plafond CNSS
+  // CNAM
+  cnamEmployeeRate Decimal  @default(0.0) @db.Decimal(5, 4)    // Part salariale CNAM (défaut 0% — certains pays)
+  cnamEmployerRate Decimal  @default(0.04) @db.Decimal(5, 4)   // Part patronale CNAM (défaut 4%)
+  cnamCeiling      Decimal  @default(70000) @db.Decimal(12, 2) // Plafond CNAM
+  // MDT (Minimum Deposit Tax / contribution patronale)
+  mdtRate          Decimal  @default(0.0025) @db.Decimal(5, 4) // Taux MDT (défaut 0.25%)
+  // ITS
+  itsBrackets      Json     // [{min: 0, max: 9000, rate: 0}, ...]
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 }
@@ -809,19 +789,6 @@ enum AdvantageType {
   AVANTAGE_NATURE
 }
 
-enum AttendanceStatus {
-  PRESENT
-  LATE
-  ABSENT
-  EARLY_DEPARTURE
-  LATE_AND_EARLY
-}
-
-enum DeductionMethod {
-  PER_MINUTE
-  TIERED
-  FIXED
-}
 
 enum OvertimeTier {
   TIER_1 // Majoration 25%
