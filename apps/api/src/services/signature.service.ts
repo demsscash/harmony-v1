@@ -1,42 +1,12 @@
-import { PrismaClient, SignatureStatus } from '@prisma/client';
+import { PrismaClient, SignatureStatus, SignatureMode } from '@prisma/client';
 import PDFDocument from 'pdfkit';
-import { generateAttestationPdf, generateLeaveRequestPdf } from './pdf.service';
 import { PdfService } from './pdf.service';
+import { generateAttestationPdf } from './pdf.service';
 
 const prisma = new PrismaClient();
 
 export class SignatureService {
-    // Create a signature request (HR/Admin creates for employee)
-    static async createRequest(data: {
-        tenantId: string;
-        employeeId: string;
-        documentType: string;
-        title: string;
-        description?: string;
-        requestedBy: string;
-        expiresAt?: Date;
-    }) {
-        // Verify employee belongs to tenant
-        const employee = await prisma.employee.findFirst({
-            where: { id: data.employeeId, tenantId: data.tenantId }
-        });
-        if (!employee) throw new Error('Employé introuvable');
-
-        return prisma.signatureRequest.create({
-            data: {
-                tenantId: data.tenantId,
-                employeeId: data.employeeId,
-                documentType: data.documentType as any,
-                title: data.title,
-                description: data.description,
-                requestedBy: data.requestedBy,
-                expiresAt: data.expiresAt,
-            },
-            include: { employee: true },
-        });
-    }
-
-    // Get all signature requests for a tenant
+    // ── List ─────────────────────────────────────────────────
     static async getAll(tenantId: string, filters?: { status?: string; employeeId?: string }) {
         const where: any = { tenantId };
         if (filters?.status) where.status = filters.status;
@@ -44,63 +14,180 @@ export class SignatureService {
 
         return prisma.signatureRequest.findMany({
             where,
-            include: {
-                employee: { select: { id: true, firstName: true, lastName: true, position: true, matricule: true } },
-            },
+            include: { employee: { select: { id: true, firstName: true, lastName: true, matricule: true, photo: true } } },
             orderBy: { createdAt: 'desc' },
         });
     }
 
-    // Get signature requests for a specific employee (for employee portal)
-    static async getForEmployee(employeeId: string, tenantId: string) {
-        return prisma.signatureRequest.findMany({
-            where: { employeeId, tenantId },
-            orderBy: { createdAt: 'desc' },
-        });
-    }
-
-    // Get a single signature request by ID
     static async getById(id: string, tenantId: string) {
-        const request = await prisma.signatureRequest.findFirst({
+        return prisma.signatureRequest.findFirst({
             where: { id, tenantId },
-            include: {
-                employee: { select: { id: true, firstName: true, lastName: true, position: true, matricule: true, department: true } },
-            },
+            include: { employee: { select: { id: true, firstName: true, lastName: true, matricule: true, photo: true, position: true } } },
         });
-        if (!request) throw new Error('Demande de signature introuvable');
-        return request;
     }
 
-    // Employee signs a document
-    static async sign(id: string, tenantId: string, employeeId: string, signatureData: string) {
-        const request = await prisma.signatureRequest.findFirst({
-            where: { id, tenantId, employeeId },
-        });
+    // ── Workflow 1: Admin envoie un document à signer ────────
+    static async createFromAdmin(tenantId: string, userId: string, data: {
+        employeeId: string;
+        title: string;
+        description?: string;
+        documentType: string;
+        signatureMode: string;
+        expiresAt?: string;
+    }) {
+        // Validate employee
+        const emp = await prisma.employee.findFirst({ where: { id: data.employeeId, tenantId } });
+        if (!emp) throw new Error('Employé introuvable');
 
-        if (!request) throw new Error('Demande de signature introuvable');
-        if (request.status !== 'PENDING') throw new Error('Cette demande a déjà été traitée');
-        if (request.expiresAt && new Date(request.expiresAt) < new Date()) {
-            throw new Error('Cette demande de signature a expiré');
+        // Generate PDF based on document type
+        let pdfBuffer: Buffer | null = null;
+        if (data.documentType === 'CONTRACT') {
+            pdfBuffer = await PdfService.generateEmployeeContract(data.employeeId, tenantId);
+        } else if (data.documentType === 'ATTESTATION') {
+            pdfBuffer = await generateAttestationPdf(data.employeeId, tenantId);
+        }
+
+        const pdfData = pdfBuffer ? pdfBuffer.toString('base64') : null;
+
+        return prisma.signatureRequest.create({
+            data: {
+                tenantId,
+                employeeId: data.employeeId,
+                title: data.title,
+                description: data.description,
+                documentType: data.documentType as any,
+                signatureMode: (data.signatureMode || 'EMPLOYEE_ONLY') as SignatureMode,
+                pdfData,
+                status: 'PENDING',
+                initiatedBy: 'ADMIN',
+                requestedBy: userId,
+                expiresAt: data.expiresAt ? new Date(data.expiresAt) : null,
+            },
+            include: { employee: { select: { id: true, firstName: true, lastName: true } } },
+        });
+    }
+
+    // ── Workflow 2: Employé demande un document ──────────────
+    static async createFromEmployee(tenantId: string, employeeId: string, userId: string, data: {
+        title: string;
+        description?: string;
+        documentType: string;
+    }) {
+        return prisma.signatureRequest.create({
+            data: {
+                tenantId,
+                employeeId,
+                title: data.title,
+                description: data.description,
+                documentType: data.documentType as any,
+                signatureMode: 'ADMIN_ONLY',
+                status: 'AWAITING_VALIDATION',
+                initiatedBy: 'EMPLOYEE',
+                requestedBy: userId,
+            },
+        });
+    }
+
+    // ── Admin valide une demande employé → génère + signe ────
+    static async validateAndSign(id: string, tenantId: string, userId: string, adminSignature: string) {
+        const req = await prisma.signatureRequest.findFirst({ where: { id, tenantId } });
+        if (!req) throw new Error('Demande introuvable');
+        if (req.status !== 'AWAITING_VALIDATION') throw new Error('Cette demande n\'est pas en attente de validation');
+
+        // Generate the PDF
+        let pdfBuffer: Buffer | null = null;
+        if (req.documentType === 'ATTESTATION') {
+            pdfBuffer = await generateAttestationPdf(req.employeeId, tenantId);
+        } else if (req.documentType === 'CONTRACT') {
+            pdfBuffer = await PdfService.generateEmployeeContract(req.employeeId, tenantId);
         }
 
         return prisma.signatureRequest.update({
             where: { id },
             data: {
                 status: 'SIGNED',
-                signatureData,
-                signedAt: new Date(),
+                pdfData: pdfBuffer ? pdfBuffer.toString('base64') : null,
+                adminSignature,
+                validatedBy: userId,
+                adminSignedAt: new Date(),
             },
-            include: { employee: true },
         });
     }
 
-    // Cancel a signature request
-    static async cancel(id: string, tenantId: string) {
-        const request = await prisma.signatureRequest.findFirst({
-            where: { id, tenantId },
+    // ── Admin rejette une demande employé ─────────────────────
+    static async reject(id: string, tenantId: string, userId: string, reason?: string) {
+        const req = await prisma.signatureRequest.findFirst({ where: { id, tenantId } });
+        if (!req) throw new Error('Demande introuvable');
+        if (req.status !== 'AWAITING_VALIDATION' && req.status !== 'PENDING') throw new Error('Impossible de rejeter');
+
+        return prisma.signatureRequest.update({
+            where: { id },
+            data: { status: 'REJECTED', validatedBy: userId, rejectionReason: reason },
         });
-        if (!request) throw new Error('Demande de signature introuvable');
-        if (request.status === 'SIGNED') throw new Error('Impossible d\'annuler une signature déjà effectuée');
+    }
+
+    // ── Employé signe ────────────────────────────────────────
+    static async employeeSign(id: string, tenantId: string, employeeId: string, signatureData: string) {
+        const req = await prisma.signatureRequest.findFirst({ where: { id, tenantId } });
+        if (!req) throw new Error('Demande introuvable');
+        if (req.employeeId !== employeeId) throw new Error('Accès non autorisé');
+        if (req.status !== 'PENDING') throw new Error('Ce document n\'est pas en attente de signature');
+        if (req.expiresAt && new Date() > req.expiresAt) throw new Error('Ce document a expiré');
+
+        const newStatus: SignatureStatus = req.signatureMode === 'DUAL' ? 'AWAITING_ADMIN' : 'SIGNED';
+
+        return prisma.signatureRequest.update({
+            where: { id },
+            data: {
+                employeeSignature: signatureData,
+                employeeSignedAt: new Date(),
+                status: newStatus,
+            },
+        });
+    }
+
+    // ── Admin signe (DUAL — après l'employé, ou en même temps) ─
+    static async adminSign(id: string, tenantId: string, userId: string, adminSignature: string, employeeSignature?: string) {
+        const req = await prisma.signatureRequest.findFirst({ where: { id, tenantId } });
+        if (!req) throw new Error('Demande introuvable');
+
+        // DUAL: admin signe après l'employé
+        if (req.signatureMode === 'DUAL' && req.status === 'AWAITING_ADMIN') {
+            return prisma.signatureRequest.update({
+                where: { id },
+                data: {
+                    adminSignature,
+                    adminSignedAt: new Date(),
+                    validatedBy: userId,
+                    status: 'SIGNED',
+                },
+            });
+        }
+
+        // DUAL: les deux signent en même temps (admin saisit les deux)
+        if (req.signatureMode === 'DUAL' && req.status === 'PENDING' && employeeSignature) {
+            return prisma.signatureRequest.update({
+                where: { id },
+                data: {
+                    employeeSignature,
+                    employeeSignedAt: new Date(),
+                    adminSignature,
+                    adminSignedAt: new Date(),
+                    validatedBy: userId,
+                    status: 'SIGNED',
+                },
+            });
+        }
+
+        // EMPLOYEE_ONLY: admin ne devrait pas signer
+        throw new Error('Action non autorisée pour ce type de signature');
+    }
+
+    // ── Annuler ──────────────────────────────────────────────
+    static async cancel(id: string, tenantId: string) {
+        const req = await prisma.signatureRequest.findFirst({ where: { id, tenantId } });
+        if (!req) throw new Error('Demande introuvable');
+        if (req.status === 'SIGNED') throw new Error('Impossible d\'annuler un document signé');
 
         return prisma.signatureRequest.update({
             where: { id },
@@ -108,255 +195,82 @@ export class SignatureService {
         });
     }
 
-    // Send reminder (update reminderSentAt)
-    static async sendReminder(id: string, tenantId: string) {
-        const request = await prisma.signatureRequest.findFirst({
-            where: { id, tenantId, status: 'PENDING' },
-        });
-        if (!request) throw new Error('Demande de signature introuvable ou déjà traitée');
-
-        return prisma.signatureRequest.update({
-            where: { id },
-            data: { reminderSentAt: new Date() },
-        });
-    }
-
-    // Generate the unsigned PDF for a signature request
-    static async generateDocument(id: string, tenantId: string): Promise<Buffer> {
-        const request = await prisma.signatureRequest.findFirst({
+    // ── Télécharger le PDF (avec signatures incrustées) ──────
+    static async getSignedPdf(id: string, tenantId: string): Promise<Buffer> {
+        const req = await prisma.signatureRequest.findFirst({
             where: { id, tenantId },
-            include: { employee: { include: { department: true } } },
+            include: { employee: { select: { firstName: true, lastName: true } } },
         });
-        if (!request) throw new Error('Demande de signature introuvable');
+        if (!req) throw new Error('Demande introuvable');
+        if (!req.pdfData) throw new Error('Aucun PDF disponible');
 
-        const employee = request.employee;
+        const pdfBuffer = Buffer.from(req.pdfData, 'base64');
 
-        switch (request.documentType) {
-            case 'CONTRACT':
-                return PdfService.generateEmployeeContract(employee.id, tenantId);
-            case 'ATTESTATION':
-                return generateAttestationPdf(employee.id, tenantId);
-            case 'BADGE':
-                return PdfService.generateEmployeeBadge(employee.id, tenantId);
-            default:
-                // Generic document with title + description
-                return this.generateGenericDocument(request, employee, tenantId);
-        }
+        // If no signatures, return raw PDF
+        if (!req.employeeSignature && !req.adminSignature) return pdfBuffer;
+
+        // Embed signatures into a new PDF
+        return this.embedSignatures(pdfBuffer, req);
     }
 
-    // Generate generic document for OTHER/PAYSLIP/JUSTIFICATION types
-    private static async generateGenericDocument(request: any, employee: any, tenantId: string): Promise<Buffer> {
-        const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
+    private static embedSignatures(originalPdf: Buffer, req: any): Promise<Buffer> {
         return new Promise((resolve, reject) => {
-            const doc = new PDFDocument({ size: 'A4', margin: 60 });
+            const doc = new PDFDocument({ size: 'A4', margin: 50 });
             const chunks: Buffer[] = [];
             doc.on('data', (c: Buffer) => chunks.push(c));
             doc.on('end', () => resolve(Buffer.concat(chunks)));
             doc.on('error', reject);
 
-            const W = 595 - 120;
-            const L = 60;
-
             // Header
-            doc.rect(0, 0, 595, 70).fill('#1e293b');
-            doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(15)
-                .text((tenant?.name || 'HARMONY').toUpperCase(), L, 18, { width: W });
-            doc.fillColor('#94a3b8').font('Helvetica').fontSize(8.5)
-                .text('Document officiel', L, 40, { width: W });
+            doc.font('Helvetica-Bold').fontSize(12).text('DOCUMENT SIGNÉ', { align: 'center' });
+            doc.moveDown(0.5);
+            doc.font('Helvetica').fontSize(10).text(req.title, { align: 'center' });
+            doc.moveDown(0.3);
+            doc.fontSize(8).fillColor('#64748b').text(`Réf: ${req.id}`, { align: 'center' });
+            doc.moveDown(1);
 
-            let y = 90;
+            // Document content placeholder
+            doc.fillColor('#1e293b').font('Helvetica').fontSize(10);
+            doc.text(`Document : ${req.title}`);
+            doc.text(`Type : ${req.documentType}`);
+            doc.text(`Employé : ${req.employee?.firstName} ${req.employee?.lastName}`);
+            if (req.description) doc.text(`Description : ${req.description}`);
+            doc.moveDown(2);
 
-            // Title
-            doc.fillColor('#1e40af').font('Helvetica-Bold').fontSize(16)
-                .text(request.title.toUpperCase(), L, y, { width: W, align: 'center' });
-            y += 32;
-            doc.moveTo(L, y).lineTo(L + W, y).strokeColor('#1e40af').lineWidth(2).stroke();
-            y += 20;
+            doc.text('Ce document a été signé électroniquement par les parties ci-dessous.');
+            doc.moveDown(2);
 
-            // Employee info
-            doc.fillColor('#1e293b').font('Helvetica').fontSize(11);
-            doc.text(`Employé : ${employee.firstName} ${employee.lastName}`, L, y);
-            y += 18;
-            doc.text(`Matricule : ${employee.matricule || '—'}`, L, y);
-            y += 18;
-            doc.text(`Poste : ${employee.position || '—'}`, L, y);
-            y += 30;
+            // Signatures zone
+            const sigY = doc.y;
+            const pageW = 495;
 
-            // Description
-            if (request.description) {
-                doc.fillColor('#334155').font('Helvetica').fontSize(11).lineGap(4);
-                doc.text(request.description, L, y, { width: W });
+            // Employee signature (left)
+            if (req.employeeSignature) {
+                doc.font('Helvetica-Bold').fontSize(9).text("L'Employé", 50, sigY);
+                doc.font('Helvetica').fontSize(8).text(`${req.employee?.firstName} ${req.employee?.lastName}`, 50, sigY + 12);
+                if (req.employeeSignedAt) doc.text(`Signé le ${new Date(req.employeeSignedAt).toLocaleDateString('fr-FR')}`, 50, sigY + 22);
+                try {
+                    const sigBuf = Buffer.from(req.employeeSignature.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+                    doc.image(sigBuf, 50, sigY + 35, { width: 150, height: 60 });
+                } catch { /* skip */ }
             }
 
-            // Signature placeholder
-            y = 650;
-            doc.moveTo(L, y).lineTo(L + W, y).strokeColor('#e2e8f0').lineWidth(0.5).stroke();
-            y += 16;
-            doc.fillColor('#64748b').font('Helvetica').fontSize(9)
-                .text('Signature de l\'employé :', L, y);
-            y += 12;
-            doc.rect(L, y, 200, 80).stroke('#e2e8f0');
-            doc.fillColor('#cbd5e1').font('Helvetica').fontSize(8)
-                .text('(signature numérique)', L + 50, y + 35);
+            // Admin signature (right)
+            if (req.adminSignature) {
+                doc.font('Helvetica-Bold').fontSize(9).text("L'Employeur", 320, sigY);
+                doc.font('Helvetica').fontSize(8).text('Direction / RH', 320, sigY + 12);
+                if (req.adminSignedAt) doc.text(`Signé le ${new Date(req.adminSignedAt).toLocaleDateString('fr-FR')}`, 320, sigY + 22);
+                try {
+                    const sigBuf = Buffer.from(req.adminSignature.replace(/^data:image\/\w+;base64,/, ''), 'base64');
+                    doc.image(sigBuf, 320, sigY + 35, { width: 150, height: 60 });
+                } catch { /* skip */ }
+            }
 
             // Footer
-            doc.fillColor('#94a3b8').font('Helvetica').fontSize(7.5)
-                .text(`Document généré le ${new Date().toLocaleDateString('fr-FR')} — ${tenant?.name || ''}`, L, 800, { width: W, align: 'center' });
+            doc.fontSize(7).fillColor('#94a3b8')
+                .text(`Document signé électroniquement — ${new Date().toLocaleDateString('fr-FR')} — Réf: ${req.id}`, 50, 780, { align: 'center', width: pageW });
 
             doc.end();
         });
-    }
-
-    // Generate signed PDF with the signature image embedded
-    static async generateSignedPdf(id: string, tenantId: string): Promise<Buffer> {
-        const request = await prisma.signatureRequest.findFirst({
-            where: { id, tenantId, status: 'SIGNED' },
-            include: { employee: { include: { department: true } } },
-        });
-        if (!request) throw new Error('Document signé introuvable');
-        if (!request.signatureData) throw new Error('Aucune signature trouvée');
-
-        // Get the base document
-        const basePdf = await this.generateDocument(id, tenantId);
-
-        // Now create a new PDF that includes the signature overlay
-        return this.embedSignatureInPdf(request, tenantId);
-    }
-
-    // Build PDF with signature embedded
-    private static async embedSignatureInPdf(request: any, tenantId: string): Promise<Buffer> {
-        const tenant = await prisma.tenant.findUnique({ where: { id: tenantId } });
-        const employee = request.employee;
-        const signatureBase64 = request.signatureData.split(',')[1];
-        const signatureBuffer = Buffer.from(signatureBase64, 'base64');
-
-        // Helper for tenant logo
-        let logoBuffer: Buffer | null = null;
-        if (tenant?.logo?.startsWith('data:image/')) {
-            try {
-                logoBuffer = Buffer.from(tenant.logo.split(',')[1], 'base64');
-            } catch { /* skip */ }
-        }
-
-        return new Promise((resolve, reject) => {
-            const doc = new PDFDocument({ size: 'A4', margin: 60 });
-            const chunks: Buffer[] = [];
-            doc.on('data', (c: Buffer) => chunks.push(c));
-            doc.on('end', () => resolve(Buffer.concat(chunks)));
-            doc.on('error', reject);
-
-            const W = 595 - 120;
-            const L = 60;
-
-            // Header
-            doc.rect(0, 0, 595, 70).fill('#1e293b');
-            let hdrX = L;
-            if (logoBuffer) {
-                try { doc.image(logoBuffer, L, 10, { height: 45, fit: [45, 45] }); hdrX = L + 55; } catch { /* skip */ }
-            }
-            doc.fillColor('#ffffff').font('Helvetica-Bold').fontSize(15)
-                .text((tenant?.name || 'HARMONY').toUpperCase(), hdrX, 18, { width: W - (hdrX - L) });
-            doc.fillColor('#94a3b8').font('Helvetica').fontSize(8.5)
-                .text('Document officiel — SIGNÉ', hdrX, 40, { width: W - (hdrX - L) });
-
-            // Signed badge
-            doc.fillColor('#10b981').font('Helvetica-Bold').fontSize(9)
-                .text('✓ SIGNÉ', L, 40, { width: W, align: 'right' });
-
-            let y = 90;
-
-            // Title
-            doc.fillColor('#1e40af').font('Helvetica-Bold').fontSize(16)
-                .text(request.title.toUpperCase(), L, y, { width: W, align: 'center' });
-            y += 32;
-            doc.moveTo(L, y).lineTo(L + W, y).strokeColor('#1e40af').lineWidth(2).stroke();
-            y += 20;
-
-            // Employee info
-            doc.fillColor('#1e293b').font('Helvetica-Bold').fontSize(10)
-                .text('INFORMATIONS DE L\'EMPLOYÉ', L, y);
-            y += 16;
-            doc.rect(L, y, W, 70).fill('#f8fafc').stroke('#e2e8f0');
-            doc.fillColor('#64748b').font('Helvetica').fontSize(9);
-            doc.text(`Nom & Prénom :`, L + 12, y + 10).font('Helvetica-Bold').fillColor('#1e293b')
-                .text(`${employee.firstName} ${employee.lastName}`, L + 100, y + 10);
-            doc.fillColor('#64748b').font('Helvetica')
-                .text(`Matricule :`, L + 12, y + 26).font('Helvetica-Bold').fillColor('#1e293b')
-                .text(employee.matricule || '—', L + 100, y + 26);
-            doc.fillColor('#64748b').font('Helvetica')
-                .text(`Poste :`, L + 12, y + 42).font('Helvetica-Bold').fillColor('#1e293b')
-                .text(employee.position || '—', L + 100, y + 42);
-            if (employee.department) {
-                doc.fillColor('#64748b').font('Helvetica')
-                    .text(`Département :`, L + 12, y + 58).font('Helvetica-Bold').fillColor('#1e293b')
-                    .text(employee.department.name, L + 100, y + 58);
-            }
-            y += 86;
-
-            // Document type + details
-            const docTypeLabels: Record<string, string> = {
-                CONTRACT: 'Contrat de travail', ATTESTATION: 'Attestation de travail',
-                PAYSLIP: 'Bulletin de paie', BADGE: 'Badge employé', OTHER: 'Autre document',
-                JUSTIFICATION: 'Justificatif',
-            };
-            doc.fillColor('#1e293b').font('Helvetica-Bold').fontSize(10)
-                .text('DÉTAILS DU DOCUMENT', L, y);
-            y += 16;
-            doc.fillColor('#64748b').font('Helvetica').fontSize(9)
-                .text(`Type : ${docTypeLabels[request.documentType] || request.documentType}`, L, y);
-            y += 16;
-            doc.text(`Date de demande : ${new Date(request.requestedAt).toLocaleDateString('fr-FR')}`, L, y);
-            y += 16;
-            doc.text(`Date de signature : ${new Date(request.signedAt).toLocaleDateString('fr-FR')}`, L, y);
-            y += 20;
-
-            if (request.description) {
-                doc.fillColor('#334155').font('Helvetica').fontSize(10).lineGap(4)
-                    .text(request.description, L, y, { width: W });
-                y += 40;
-            }
-
-            // Signature section
-            y = Math.max(y + 20, 560);
-            doc.moveTo(L, y).lineTo(L + W, y).strokeColor('#1e40af').lineWidth(1).stroke();
-            y += 16;
-
-            doc.fillColor('#1e293b').font('Helvetica-Bold').fontSize(10)
-                .text('SIGNATURE NUMÉRIQUE', L, y);
-            y += 20;
-
-            // Embed the actual signature image
-            try {
-                doc.image(signatureBuffer, L, y, { width: 200, height: 80 });
-            } catch {
-                doc.fillColor('#ef4444').font('Helvetica').fontSize(9)
-                    .text('[Erreur de chargement de la signature]', L, y);
-            }
-
-            // Signature metadata
-            doc.fillColor('#64748b').font('Helvetica').fontSize(8)
-                .text(`Signé par : ${employee.firstName} ${employee.lastName}`, L + 220, y + 10);
-            doc.text(`Le : ${new Date(request.signedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric', hour: '2-digit', minute: '2-digit' })}`, L + 220, y + 24);
-            doc.text(`Réf : ${request.id.slice(0, 8).toUpperCase()}`, L + 220, y + 38);
-
-            y += 100;
-
-            // Footer
-            doc.fillColor('#94a3b8').font('Helvetica').fontSize(7.5)
-                .text(`Document signé électroniquement — ${tenant?.name || ''} — Réf. ${request.id.slice(0, 8).toUpperCase()} — ${new Date().toISOString()}`, L, 800, { width: W, align: 'center' });
-
-            doc.end();
-        });
-    }
-
-    // Get stats for dashboard
-    static async getStats(tenantId: string) {
-        const [total, pending, signed, expired] = await Promise.all([
-            prisma.signatureRequest.count({ where: { tenantId } }),
-            prisma.signatureRequest.count({ where: { tenantId, status: 'PENDING' } }),
-            prisma.signatureRequest.count({ where: { tenantId, status: 'SIGNED' } }),
-            prisma.signatureRequest.count({ where: { tenantId, status: 'EXPIRED' } }),
-        ]);
-        return { total, pending, signed, expired };
     }
 }

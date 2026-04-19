@@ -1,38 +1,47 @@
 import { Router } from 'express';
-import {
-    createSignatureRequest,
-    getSignatureRequests,
-    getSignatureRequestById,
-    getMySignatureRequests,
-    signDocument,
-    cancelSignatureRequest,
-    sendSignatureReminder,
-    getSignatureStats,
-    previewDocument,
-    downloadSignedPdf,
-} from '../controllers/signature.controller';
+import { tenantResolver } from '../middleware/tenant';
 import { authenticateToken } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
-import { tenantResolver } from '../middleware/tenant';
 import { auditLog } from '../middleware/audit';
 import { UserRole } from '@prisma/client';
+import {
+    getSignatures, getSignatureById,
+    createSignatureRequest, requestDocument,
+    employeeSign, adminSign, validateAndSign,
+    rejectSignature, cancelSignature,
+    downloadSignedPdf, downloadRawPdf,
+} from '../controllers/signature.controller';
 
 const router = Router();
-
 router.use(tenantResolver, authenticateToken);
 
-// Employee endpoints (must be before /:id to avoid route conflict)
-router.get('/my/pending', requireRole([UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE]), getMySignatureRequests);
+// ── List & Detail ────────────────────────────────────────
+router.get('/', requireRole([UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE]), getSignatures);
+router.get('/:id', requireRole([UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE]), getSignatureById);
 
-// Admin/HR endpoints
-router.get('/', requireRole([UserRole.ADMIN, UserRole.HR]), getSignatureRequests);
-router.get('/stats', requireRole([UserRole.ADMIN, UserRole.HR]), getSignatureStats);
-router.post('/', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'CREATE_SIGNATURE_REQUEST', resource: 'SignatureRequest' }), createSignatureRequest);
-router.get('/:id', requireRole([UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE]), getSignatureRequestById);
-router.get('/:id/pdf', requireRole([UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE]), previewDocument);
+// ── PDF downloads ────────────────────────────────────────
+router.get('/:id/pdf', requireRole([UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE]), downloadRawPdf);
 router.get('/:id/signed-pdf', requireRole([UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE]), downloadSignedPdf);
-router.patch('/:id/cancel', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'CANCEL_SIGNATURE', resource: 'SignatureRequest' }), cancelSignatureRequest);
-router.post('/:id/reminder', requireRole([UserRole.ADMIN, UserRole.HR]), sendSignatureReminder);
-router.post('/:id/sign', requireRole([UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE]), auditLog({ action: 'SIGN_DOCUMENT', resource: 'SignatureRequest' }), signDocument);
+
+// ── Admin creates signature request ──────────────────────
+router.post('/', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'CREATE_SIGNATURE_REQUEST', resource: 'SignatureRequest' }), createSignatureRequest);
+
+// ── Employee requests a document ─────────────────────────
+router.post('/request-document', requireRole([UserRole.EMPLOYEE]), auditLog({ action: 'REQUEST_DOCUMENT', resource: 'SignatureRequest' }), requestDocument);
+
+// ── Employee signs ───────────────────────────────────────
+router.post('/:id/employee-sign', requireRole([UserRole.ADMIN, UserRole.HR, UserRole.EMPLOYEE]), auditLog({ action: 'EMPLOYEE_SIGN', resource: 'SignatureRequest' }), employeeSign);
+
+// ── Admin signs (DUAL or both at once) ───────────────────
+router.post('/:id/admin-sign', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'ADMIN_SIGN', resource: 'SignatureRequest' }), adminSign);
+
+// ── Admin validates + signs employee request ─────────────
+router.post('/:id/validate', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'VALIDATE_SIGNATURE', resource: 'SignatureRequest' }), validateAndSign);
+
+// ── Reject ───────────────────────────────────────────────
+router.post('/:id/reject', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'REJECT_SIGNATURE', resource: 'SignatureRequest' }), rejectSignature);
+
+// ── Cancel ───────────────────────────────────────────────
+router.post('/:id/cancel', requireRole([UserRole.ADMIN, UserRole.HR]), auditLog({ action: 'CANCEL_SIGNATURE', resource: 'SignatureRequest' }), cancelSignature);
 
 export default router;

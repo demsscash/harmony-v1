@@ -26,7 +26,9 @@
       "Bash(lsof:*)",
       "Bash(cat -n /Users/demss/Desktop/harmony/apps/web/src/app/[locale]/dashboard/attendance/page.tsx)",
       "Bash(pnpm --filter web build)",
-      "Bash(file /Users/demss/Desktop/harmony/apps/web/src/app/[locale]/dashboard/settings/page.tsx)"
+      "Bash(file /Users/demss/Desktop/harmony/apps/web/src/app/[locale]/dashboard/settings/page.tsx)",
+      "Bash(rm -f \"/Users/demss/Desktop/harmony/apps/web/src/app/[locale]/employee/signatures/page.tsx\")",
+      "Bash(rm -rf \"/Users/demss/Desktop/harmony/apps/web/src/app/[locale]/employee/signatures/[id]\")"
     ]
   }
 }

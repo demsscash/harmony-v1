@@ -2,243 +2,195 @@
 
 import * as React from 'react';
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
+import { useAuthStore } from '@/store/authStore';
 import api from '@/lib/api';
 import { toast } from 'sonner';
-import { useTranslations } from 'next-intl';
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import {
-    PenTool, Loader2, CheckCircle2, Clock, XCircle, AlertTriangle,
-    ArrowRight, FileText
-} from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { PenTool, Plus, Loader2, FileText, CheckCircle2, Clock, XCircle } from 'lucide-react';
 import Link from 'next/link';
-import { motion } from 'framer-motion';
 
-// ─── Types ──────────────────────────────────────────────
-interface SignatureRequest {
-    id: string;
-    title: string;
-    description?: string;
-    documentType: string;
-    status: 'PENDING' | 'SIGNED' | 'EXPIRED' | 'CANCELLED';
-    createdAt: string;
-    signedAt?: string;
-    expiresAt?: string;
-}
-
-const STATUS_CONFIG = {
-    PENDING: { color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Clock },
-    SIGNED: { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
-    EXPIRED: { color: 'bg-red-100 text-red-600 border-red-200', icon: AlertTriangle },
-    CANCELLED: { color: 'bg-slate-100 text-slate-600 border-slate-200', icon: XCircle },
+const STATUS_COLOR: Record<string, string> = {
+    PENDING: 'bg-amber-100 text-amber-700',
+    AWAITING_ADMIN: 'bg-blue-100 text-blue-700',
+    AWAITING_VALIDATION: 'bg-purple-100 text-purple-700',
+    SIGNED: 'bg-emerald-100 text-emerald-700',
+    REJECTED: 'bg-red-100 text-red-700',
+    CANCELLED: 'bg-slate-100 text-slate-500',
 };
 
-export default function MySignaturesPage() {
+export default function EmployeeSignaturesPage() {
     const t = useTranslations('signatures');
     const tc = useTranslations('common');
-    const tp = useTranslations('employeePortal');
+    const { user } = useAuthStore();
 
-    const [requests, setRequests] = useState<SignatureRequest[]>([]);
+    const [requests, setRequests] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [showRequest, setShowRequest] = useState(false);
+    const [saving, setSaving] = useState(false);
+    const [form, setForm] = useState({ title: '', description: '', documentType: 'ATTESTATION' });
 
-    useEffect(() => {
-        const fetchPending = async () => {
-            try {
-                const res = await api.get('/signatures/my/pending');
-                if (res.data.success) setRequests(res.data.data);
-            } catch {
-                toast.error(t('errorLoading'));
-            } finally {
-                setLoading(false);
-            }
-        };
-        fetchPending();
-    }, []);
+    const fetchData = () => {
+        api.get('/signatures', { params: { employeeId: user?.employeeId } })
+            .then(res => setRequests(res.data?.data || []))
+            .catch(() => {})
+            .finally(() => setLoading(false));
+    };
+    useEffect(() => { fetchData(); }, []);
 
-    const docTypeLabel = (type: string) => {
-        const map: Record<string, string> = {
-            CONTRACT: t('contract'),
-            ATTESTATION: t('attestation'),
-            PAYSLIP: t('payslip'),
-            OTHER: t('other'),
-        };
-        return map[type] || type;
+    const handleRequestDoc = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!form.title) return;
+        setSaving(true);
+        try {
+            await api.post('/signatures/request-document', form);
+            toast.success(t('requestSuccess'));
+            setShowRequest(false);
+            setForm({ title: '', description: '', documentType: 'ATTESTATION' });
+            fetchData();
+        } catch (err: any) { toast.error(err.response?.data?.error || 'Erreur'); }
+        finally { setSaving(false); }
     };
 
-    const statusLabel = (status: string) => {
-        const map: Record<string, string> = {
-            PENDING: t('pending'),
-            SIGNED: t('signed'),
-            EXPIRED: t('expired'),
-            CANCELLED: t('cancelled'),
-        };
-        return map[status] || status;
-    };
+    const pendingToSign = requests.filter(r => r.status === 'PENDING' && r.initiatedBy === 'ADMIN');
+    const myRequests = requests.filter(r => r.initiatedBy === 'EMPLOYEE');
+    const completed = requests.filter(r => r.status === 'SIGNED');
 
-    const pendingRequests = requests.filter(r => r.status === 'PENDING');
-    const completedRequests = requests.filter(r => r.status !== 'PENDING');
+    if (loading) return <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>;
 
     return (
-        <div className="space-y-6 max-w-3xl mx-auto">
-            {/* Header */}
-            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+        <div className="space-y-6 max-w-4xl mx-auto">
+            <div className="flex justify-between items-center">
                 <div>
-                    <h1 className="text-3xl font-bold tracking-tight text-slate-900 flex items-center gap-3">
-                        <div className="p-2 rounded-xl bg-blue-600/10">
-                            <PenTool className="h-7 w-7 text-blue-600" />
-                        </div>
-                        {t('mySignatures')}
-                    </h1>
-                    <p className="text-slate-500 mt-1">{t('mySignaturesDesc')}</p>
+                    <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2"><PenTool className="h-5 w-5 text-indigo-600" /> {t('title')}</h1>
                 </div>
-            </motion.div>
+                <Button onClick={() => setShowRequest(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5">
+                    <Plus className="h-4 w-4" /> {t('requestDocument')}
+                </Button>
+            </div>
 
-            {/* Pending count badge */}
-            {!loading && pendingRequests.length > 0 && (
-                <Card className="bg-amber-50 border-amber-200">
-                    <CardContent className="p-4 flex items-center gap-3">
-                        <Clock className="h-5 w-5 text-amber-600 shrink-0" />
-                        <div>
-                            <p className="font-semibold text-amber-900 text-sm">
-                                {pendingRequests.length} {t('pendingCount').toLowerCase()}
-                            </p>
-                            <p className="text-xs text-amber-700 mt-0.5">
-                                {t('mySignaturesDesc')}
-                            </p>
-                        </div>
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Loading */}
-            {loading && (
-                <div className="flex items-center justify-center py-16">
-                    <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+            {/* Pending to sign */}
+            {pendingToSign.length > 0 && (
+                <div>
+                    <h2 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-amber-500" /> {t('pendingSignatures')} ({pendingToSign.length})
+                    </h2>
+                    <div className="space-y-2">
+                        {pendingToSign.map(r => (
+                            <Card key={r.id} className="border-amber-200 hover:shadow-md transition-all">
+                                <CardContent className="p-4 flex items-center justify-between">
+                                    <div>
+                                        <p className="font-semibold text-slate-800">{r.title}</p>
+                                        <p className="text-xs text-slate-500">{t(`docTypes.${r.documentType}`)} · {new Date(r.requestedAt).toLocaleDateString('fr-FR')}</p>
+                                    </div>
+                                    <Link href={`/employee/signatures/${r.id}`}>
+                                        <Button size="sm" className="bg-amber-500 hover:bg-amber-600 text-white gap-1.5">
+                                            <PenTool className="h-3.5 w-3.5" /> {t('sign')}
+                                        </Button>
+                                    </Link>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
                 </div>
             )}
 
-            {/* Empty state */}
-            {!loading && requests.length === 0 && (
-                <Card className="border-slate-200/60 shadow-sm bg-white/90">
-                    <CardContent className="py-16">
-                        <div className="flex flex-col items-center justify-center text-slate-400 gap-3">
-                            <PenTool className="h-12 w-12 text-slate-200" />
-                            <div className="text-center">
-                                <p className="font-medium">{t('noPending')}</p>
-                                <p className="text-xs mt-1">{t('noPendingDesc')}</p>
-                            </div>
-                        </div>
-                    </CardContent>
-                </Card>
+            {/* My document requests */}
+            {myRequests.length > 0 && (
+                <div>
+                    <h2 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-3">Mes demandes de documents</h2>
+                    <div className="space-y-2">
+                        {myRequests.map(r => (
+                            <Card key={r.id} className="hover:shadow-md transition-all">
+                                <CardContent className="p-4 flex items-center justify-between">
+                                    <div>
+                                        <p className="font-semibold text-slate-800">{r.title}</p>
+                                        <p className="text-xs text-slate-500">{t(`docTypes.${r.documentType}`)} · {new Date(r.requestedAt).toLocaleDateString('fr-FR')}</p>
+                                    </div>
+                                    <div className="flex items-center gap-2">
+                                        <span className={`px-2 py-0.5 rounded-full text-xs font-bold ${STATUS_COLOR[r.status]}`}>{t(`statuses.${r.status}`)}</span>
+                                        {r.status === 'SIGNED' && (
+                                            <Link href={`/employee/signatures/${r.id}`}>
+                                                <Button variant="outline" size="sm" className="gap-1"><FileText className="h-3.5 w-3.5" /> PDF</Button>
+                                            </Link>
+                                        )}
+                                    </div>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                </div>
             )}
 
-            {/* Pending signatures */}
-            {!loading && pendingRequests.length > 0 && (
-                <Card className="border-slate-200/60 shadow-sm bg-white/90">
-                    <CardHeader className="border-b border-slate-100">
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <Clock className="h-4 w-4 text-amber-600" />
-                            {t('pendingCount')}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <div className="divide-y divide-slate-100">
-                            {pendingRequests.map((req, idx) => {
-                                const cfg = STATUS_CONFIG[req.status];
-                                const StatusIcon = cfg.icon;
-                                return (
-                                    <motion.div
-                                        key={req.id}
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: idx * 0.05 }}
-                                        className="flex items-center justify-between px-6 py-4 hover:bg-slate-50/50 transition-colors"
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className="h-10 w-10 rounded-xl bg-amber-50 flex items-center justify-center shrink-0">
-                                                <FileText className="h-5 w-5 text-amber-600" />
-                                            </div>
-                                            <div>
-                                                <p className="font-semibold text-slate-800">{req.title}</p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className="text-xs text-slate-400">{docTypeLabel(req.documentType)}</span>
-                                                    <span className="text-slate-300">|</span>
-                                                    <span className="text-xs text-slate-400">
-                                                        {new Date(req.createdAt).toLocaleDateString('fr-FR')}
-                                                    </span>
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <Link href={`/employee/signatures/${req.id}`}>
-                                            <Button size="sm" className="bg-blue-600 hover:bg-blue-700 gap-2">
-                                                <PenTool className="h-3.5 w-3.5" /> {t('sign')}
-                                                <ArrowRight className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </Link>
-                                    </motion.div>
-                                );
-                            })}
-                        </div>
-                    </CardContent>
-                </Card>
+            {/* Completed */}
+            {completed.length > 0 && (
+                <div>
+                    <h2 className="text-sm font-bold text-slate-600 uppercase tracking-wider mb-3 flex items-center gap-2">
+                        <CheckCircle2 className="h-4 w-4 text-emerald-500" /> {t('completedSignatures')} ({completed.length})
+                    </h2>
+                    <div className="space-y-2">
+                        {completed.map(r => (
+                            <Card key={r.id} className="border-emerald-100">
+                                <CardContent className="p-4 flex items-center justify-between">
+                                    <div>
+                                        <p className="font-semibold text-slate-800">{r.title}</p>
+                                        <p className="text-xs text-slate-500">{t(`docTypes.${r.documentType}`)} · {t('signedOn')} {new Date(r.employeeSignedAt || r.adminSignedAt || r.updatedAt).toLocaleDateString('fr-FR')}</p>
+                                    </div>
+                                    <Link href={`/employee/signatures/${r.id}`}>
+                                        <Button variant="outline" size="sm" className="gap-1"><FileText className="h-3.5 w-3.5" /> Voir</Button>
+                                    </Link>
+                                </CardContent>
+                            </Card>
+                        ))}
+                    </div>
+                </div>
             )}
 
-            {/* Completed signatures */}
-            {!loading && completedRequests.length > 0 && (
-                <Card className="border-slate-200/60 shadow-sm bg-white/90">
-                    <CardHeader className="border-b border-slate-100">
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                            {t('signedCount')}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <div className="divide-y divide-slate-100">
-                            {completedRequests.map((req, idx) => {
-                                const cfg = STATUS_CONFIG[req.status];
-                                const StatusIcon = cfg.icon;
-                                return (
-                                    <motion.div
-                                        key={req.id}
-                                        initial={{ opacity: 0, x: -10 }}
-                                        animate={{ opacity: 1, x: 0 }}
-                                        transition={{ delay: idx * 0.05 }}
-                                        className="flex items-center justify-between px-6 py-4 hover:bg-slate-50/50 transition-colors"
-                                    >
-                                        <div className="flex items-center gap-4">
-                                            <div className={`h-10 w-10 rounded-xl flex items-center justify-center shrink-0 ${
-                                                req.status === 'SIGNED' ? 'bg-emerald-50' : req.status === 'EXPIRED' ? 'bg-red-50' : 'bg-slate-50'
-                                            }`}>
-                                                <StatusIcon className={`h-5 w-5 ${
-                                                    req.status === 'SIGNED' ? 'text-emerald-600' : req.status === 'EXPIRED' ? 'text-red-500' : 'text-slate-500'
-                                                }`} />
-                                            </div>
-                                            <div>
-                                                <p className="font-semibold text-slate-800">{req.title}</p>
-                                                <div className="flex items-center gap-2 mt-0.5">
-                                                    <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-bold border ${cfg.color}`}>
-                                                        <StatusIcon className="h-3 w-3" /> {statusLabel(req.status)}
-                                                    </span>
-                                                    {req.signedAt && (
-                                                        <span className="text-xs text-slate-400">
-                                                            {new Date(req.signedAt).toLocaleDateString('fr-FR')}
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </div>
-                                        </div>
-                                        <Link href={`/employee/signatures/${req.id}`}>
-                                            <Button size="sm" variant="outline" className="gap-2 border-slate-200">
-                                                {t('viewDetail')} <ArrowRight className="h-3.5 w-3.5" />
-                                            </Button>
-                                        </Link>
-                                    </motion.div>
-                                );
-                            })}
-                        </div>
-                    </CardContent>
-                </Card>
+            {requests.length === 0 && (
+                <div className="text-center py-16">
+                    <PenTool className="h-12 w-12 text-slate-300 mx-auto mb-3" />
+                    <p className="font-medium text-slate-500">{t('noRequests')}</p>
+                </div>
             )}
+
+            {/* Request Document Dialog */}
+            <Dialog open={showRequest} onOpenChange={setShowRequest}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{t('requestDocTitle')}</DialogTitle>
+                        <DialogDescription>{t('requestDocDesc')}</DialogDescription>
+                    </DialogHeader>
+                    <form onSubmit={handleRequestDoc} className="space-y-4">
+                        <div className="space-y-1.5">
+                            <Label>{t('docType')}</Label>
+                            <select value={form.documentType} onChange={e => setForm({ ...form, documentType: e.target.value })} className="w-full h-10 rounded-xl border border-slate-200 bg-white px-3 text-sm">
+                                <option value="ATTESTATION">{t('docTypes.ATTESTATION')}</option>
+                                <option value="CONTRACT">{t('docTypes.CONTRACT')}</option>
+                                <option value="OTHER">{t('docTypes.OTHER')}</option>
+                            </select>
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>{t('docTitle')} *</Label>
+                            <Input value={form.title} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Ex: Attestation de travail" required />
+                        </div>
+                        <div className="space-y-1.5">
+                            <Label>{t('description')}</Label>
+                            <Input value={form.description} onChange={e => setForm({ ...form, description: e.target.value })} placeholder="Précisions optionnelles..." />
+                        </div>
+                        <DialogFooter>
+                            <Button type="button" variant="outline" onClick={() => setShowRequest(false)}>{tc('cancel')}</Button>
+                            <Button type="submit" disabled={saving} className="bg-indigo-600 hover:bg-indigo-700 text-white">
+                                {saving ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
+                                {tc('save')}
+                            </Button>
+                        </DialogFooter>
+                    </form>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }

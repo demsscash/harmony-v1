@@ -94,6 +94,35 @@ export class AttendanceService {
         const defaultCode = await prisma.attendanceCode.findFirst({ where: { tenantId, isDefault: true } });
         if (!defaultCode) throw new Error('Aucun code par défaut configuré');
 
+        // Chercher le code JF (jour férié)
+        const holidayCode = await prisma.attendanceCode.findFirst({ where: { tenantId, code: 'JF' } });
+
+        // Charger les jours fériés du tenant pour les dates demandées
+        const holidays = await prisma.holiday.findMany({
+            where: { tenantId },
+            select: { date: true, isRecurring: true },
+        });
+
+        // Construire un Set de dates fériées (format YYYY-MM-DD)
+        const holidaySet = new Set<string>();
+        for (const h of holidays) {
+            const hDate = new Date(h.date);
+            for (const dateStr of dates) {
+                const d = new Date(dateStr);
+                if (h.isRecurring) {
+                    // Jour récurrent : comparer mois + jour uniquement
+                    if (hDate.getMonth() === d.getMonth() && hDate.getDate() === d.getDate()) {
+                        holidaySet.add(dateStr);
+                    }
+                } else {
+                    // Date fixe exacte
+                    if (hDate.toISOString().split('T')[0] === dateStr) {
+                        holidaySet.add(dateStr);
+                    }
+                }
+            }
+        }
+
         const employeeFilter: any = { tenantId, status: 'ACTIVE' };
         if (departmentId) employeeFilter.departmentId = departmentId;
         const employees = await prisma.employee.findMany({ where: employeeFilter, select: { id: true } });
@@ -105,8 +134,10 @@ export class AttendanceService {
                     where: { tenantId_employeeId_date: { tenantId, employeeId: emp.id, date: new Date(date) } },
                 });
                 if (!existing) {
+                    // Jour férié → code JF, sinon → code par défaut (T)
+                    const codeId = (holidaySet.has(date) && holidayCode) ? holidayCode.id : defaultCode.id;
                     await prisma.attendance.create({
-                        data: { tenantId, employeeId: emp.id, date: new Date(date), attendanceCodeId: defaultCode.id, recordedBy },
+                        data: { tenantId, employeeId: emp.id, date: new Date(date), attendanceCodeId: codeId, recordedBy },
                     });
                     count++;
                 }

@@ -429,24 +429,49 @@ model Document {
 }
 
 model SignatureRequest {
-  id             String          @id @default(uuid())
-  tenantId       String
-  tenant         Tenant          @relation(fields: [tenantId], references: [id])
-  employeeId     String
-  employee       Employee        @relation(fields: [employeeId], references: [id])
-  documentType   DocumentType    @default(CONTRACT)
-  title          String
-  description    String?
-  pdfPath        String?         // Generated PDF reference (employee contract, etc.)
-  status         SignatureStatus @default(PENDING)
-  signatureData  String?         @db.Text // Base64 canvas signature image
-  requestedBy    String          // User ID who requested the signature
-  requestedAt    DateTime        @default(now())
-  signedAt       DateTime?
-  expiresAt      DateTime?
-  reminderSentAt DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id                 String            @id @default(uuid())
+  tenantId           String
+  tenant             Tenant            @relation(fields: [tenantId], references: [id])
+  employeeId         String
+  employee           Employee          @relation(fields: [employeeId], references: [id])
+  documentType       DocumentType      @default(CONTRACT)
+  title              String
+  description        String?
+  // PDF stocké en base64
+  pdfData            String?           @db.Text
+  // Type de signature requise
+  signatureMode      SignatureMode     @default(EMPLOYEE_ONLY)
+  // Signatures
+  employeeSignature  String?           @db.Text // Base64 PNG signature employé
+  adminSignature     String?           @db.Text // Base64 PNG signature admin/employeur
+  // Workflow
+  status             SignatureStatus   @default(PENDING)
+  initiatedBy        SignatureInitiator @default(ADMIN) // Qui a initié la demande
+  requestedBy        String            // User ID du créateur
+  validatedBy        String?           // User ID de l'admin qui valide (pour demandes employé)
+  rejectionReason    String?
+  // Dates
+  requestedAt        DateTime          @default(now())
+  employeeSignedAt   DateTime?
+  adminSignedAt      DateTime?
+  expiresAt          DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  @@index([tenantId])
+  @@index([employeeId])
+  @@index([status])
+}
+
+enum SignatureMode {
+  EMPLOYEE_ONLY  // Seul l'employé signe (accusé de réception)
+  ADMIN_ONLY     // Seul l'admin signe (attestation demandée par employé)
+  DUAL           // Double signature (contrat — employé + employeur)
+}
+
+enum SignatureInitiator {
+  ADMIN     // HR/Admin envoie un doc à signer
+  EMPLOYEE  // Employé demande un document (attestation, etc.)
 }
 
 // ==========================================
@@ -777,10 +802,12 @@ enum DocumentType {
 }
 
 enum SignatureStatus {
-  PENDING
-  SIGNED
-  EXPIRED
-  CANCELLED
+  PENDING            // En attente de signature
+  AWAITING_ADMIN     // Employé a signé, en attente de l'admin (DUAL)
+  AWAITING_VALIDATION // Demande employé en attente de validation admin
+  SIGNED             // Toutes les signatures sont faites
+  REJECTED           // Admin a rejeté la demande
+  CANCELLED          // Annulé
 }
 
 enum AdvantageType {

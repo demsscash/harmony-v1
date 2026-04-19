@@ -1,176 +1,110 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
 import { SignatureService } from '../services/signature.service';
 
-const prisma = new PrismaClient();
+export const getSignatures = async (req: Request, res: Response) => {
+    try {
+        const { status, employeeId } = req.query;
+        const data = await SignatureService.getAll(req.tenant?.id!, { status: status as string, employeeId: employeeId as string });
+        res.json({ success: true, data });
+    } catch (error: any) { res.status(500).json({ success: false, error: error.message }); }
+};
 
-async function resolveEmployeeId(user: any): Promise<string | null> {
-    if (user.employeeId) return user.employeeId;
-    const dbUser = await prisma.user.findUnique({ where: { id: user.userId }, select: { employeeId: true } });
-    return dbUser?.employeeId || null;
-}
+export const getSignatureById = async (req: Request, res: Response) => {
+    try {
+        const data = await SignatureService.getById(String(req.params.id), req.tenant?.id!);
+        if (!data) { res.status(404).json({ success: false, error: 'Demande introuvable' }); return; }
+        res.json({ success: true, data });
+    } catch (error: any) { res.status(500).json({ success: false, error: error.message }); }
+};
 
+// Admin creates a signature request (sends doc to employee)
 export const createSignatureRequest = async (req: Request, res: Response) => {
     try {
-        const tenantId = req.tenant?.id!;
-        const { employeeId, documentType, title, description, expiresAt } = req.body;
-
-        if (!employeeId || !title) {
-            return res.status(400).json({ success: false, error: 'employeeId et title sont requis' });
-        }
-
-        const request = await SignatureService.createRequest({
-            tenantId,
-            employeeId,
-            documentType: documentType || 'CONTRACT',
-            title,
-            description,
-            requestedBy: (req as any).user.userId,
-            expiresAt: expiresAt ? new Date(expiresAt) : undefined,
-        });
-
-        res.status(201).json({ success: true, data: request });
-    } catch (err: any) {
-        res.status(400).json({ success: false, error: err.message });
-    }
+        const data = await SignatureService.createFromAdmin(req.tenant?.id!, req.user?.userId!, req.body);
+        res.status(201).json({ success: true, data });
+    } catch (error: any) { res.status(400).json({ success: false, error: error.message }); }
 };
 
-export const getSignatureRequests = async (req: Request, res: Response) => {
+// Employee requests a document (attestation, etc.)
+export const requestDocument = async (req: Request, res: Response) => {
     try {
-        const tenantId = req.tenant?.id!;
-        const { status, employeeId } = req.query;
-        const requests = await SignatureService.getAll(tenantId, {
-            status: status as string,
-            employeeId: employeeId as string,
-        });
-        res.json({ success: true, data: requests });
-    } catch (err: any) {
-        res.status(500).json({ success: false, error: err.message });
-    }
+        const employeeId = req.user?.employeeId;
+        if (!employeeId) { res.status(403).json({ success: false, error: 'Accès réservé aux employés' }); return; }
+        const data = await SignatureService.createFromEmployee(req.tenant?.id!, employeeId, req.user?.userId!, req.body);
+        res.status(201).json({ success: true, data });
+    } catch (error: any) { res.status(400).json({ success: false, error: error.message }); }
 };
 
-export const getSignatureRequestById = async (req: Request, res: Response) => {
+// Employee signs
+export const employeeSign = async (req: Request, res: Response) => {
     try {
-        const tenantId = req.tenant?.id!;
-        const request = await SignatureService.getById(String(req.params.id), tenantId);
-        res.json({ success: true, data: request });
-    } catch (err: any) {
-        const status = err.message.includes('introuvable') ? 404 : 500;
-        res.status(status).json({ success: false, error: err.message });
-    }
-};
-
-export const getMySignatureRequests = async (req: Request, res: Response) => {
-    try {
-        const tenantId = req.tenant?.id!;
-        const user = (req as any).user;
-        const employeeId = await resolveEmployeeId(user);
-
-        // ADMIN/HR see all requests for the tenant
-        if (!employeeId && (user.role === 'ADMIN' || user.role === 'HR')) {
-            const requests = await SignatureService.getAll(tenantId);
-            return res.json({ success: true, data: requests });
-        }
-
-        if (!employeeId) {
-            return res.status(400).json({ success: false, error: 'Aucun employé lié à ce compte' });
-        }
-        const requests = await SignatureService.getForEmployee(employeeId, tenantId);
-        res.json({ success: true, data: requests });
-    } catch (err: any) {
-        res.status(500).json({ success: false, error: err.message });
-    }
-};
-
-export const signDocument = async (req: Request, res: Response) => {
-    try {
-        const tenantId = req.tenant?.id!;
-        const user = (req as any).user;
+        const employeeId = req.user?.employeeId;
+        if (!employeeId) { res.status(403).json({ success: false, error: 'Accès réservé aux employés' }); return; }
         const { signatureData } = req.body;
-
-        if (!signatureData) {
-            return res.status(400).json({ success: false, error: 'Signature requise' });
-        }
-
-        // For ADMIN/HR: use the employeeId from the signature request itself
-        // For EMPLOYEE: resolve from JWT/DB
-        let employeeId = await resolveEmployeeId(user);
-        if (!employeeId && (user.role === 'ADMIN' || user.role === 'HR')) {
-            const request = await prisma.signatureRequest.findFirst({
-                where: { id: String(req.params.id), tenantId },
-                select: { employeeId: true },
-            });
-            if (!request) {
-                return res.status(404).json({ success: false, error: 'Demande introuvable' });
-            }
-            employeeId = request.employeeId;
-        }
-
-        if (!employeeId) {
-            return res.status(400).json({ success: false, error: 'Aucun employé lié à ce compte' });
-        }
-
-        const result = await SignatureService.sign(String(req.params.id), tenantId, employeeId, signatureData);
-        res.json({ success: true, data: result });
-    } catch (err: any) {
-        res.status(400).json({ success: false, error: err.message });
-    }
+        if (!signatureData) { res.status(400).json({ success: false, error: 'Signature requise' }); return; }
+        const data = await SignatureService.employeeSign(String(req.params.id), req.tenant?.id!, employeeId, signatureData);
+        res.json({ success: true, data });
+    } catch (error: any) { res.status(400).json({ success: false, error: error.message }); }
 };
 
-export const cancelSignatureRequest = async (req: Request, res: Response) => {
+// Admin signs (DUAL after employee, or both at once)
+export const adminSign = async (req: Request, res: Response) => {
     try {
-        const tenantId = req.tenant?.id!;
-        const result = await SignatureService.cancel(String(req.params.id), tenantId);
-        res.json({ success: true, data: result });
-    } catch (err: any) {
-        res.status(400).json({ success: false, error: err.message });
-    }
+        const { adminSignature, employeeSignature } = req.body;
+        if (!adminSignature) { res.status(400).json({ success: false, error: 'Signature admin requise' }); return; }
+        const data = await SignatureService.adminSign(String(req.params.id), req.tenant?.id!, req.user?.userId!, adminSignature, employeeSignature);
+        res.json({ success: true, data });
+    } catch (error: any) { res.status(400).json({ success: false, error: error.message }); }
 };
 
-export const sendSignatureReminder = async (req: Request, res: Response) => {
+// Admin validates employee document request + signs
+export const validateAndSign = async (req: Request, res: Response) => {
     try {
-        const tenantId = req.tenant?.id!;
-        const result = await SignatureService.sendReminder(String(req.params.id), tenantId);
-        res.json({ success: true, data: result });
-    } catch (err: any) {
-        res.status(400).json({ success: false, error: err.message });
-    }
+        const { adminSignature } = req.body;
+        if (!adminSignature) { res.status(400).json({ success: false, error: 'Signature admin requise' }); return; }
+        const data = await SignatureService.validateAndSign(String(req.params.id), req.tenant?.id!, req.user?.userId!, adminSignature);
+        res.json({ success: true, data });
+    } catch (error: any) { res.status(400).json({ success: false, error: error.message }); }
 };
 
-// Preview the unsigned document PDF
-export const previewDocument = async (req: Request, res: Response) => {
+// Reject
+export const rejectSignature = async (req: Request, res: Response) => {
     try {
-        const tenantId = req.tenant?.id!;
-        const pdfBuffer = await SignatureService.generateDocument(String(req.params.id), tenantId);
-        res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'inline; filename="document.pdf"');
-        res.send(pdfBuffer);
-    } catch (err: any) {
-        const status = err.message.includes('introuvable') ? 404 : 500;
-        res.status(status).json({ success: false, error: err.message });
-    }
+        const data = await SignatureService.reject(String(req.params.id), req.tenant?.id!, req.user?.userId!, req.body.reason);
+        res.json({ success: true, data });
+    } catch (error: any) { res.status(400).json({ success: false, error: error.message }); }
 };
 
-// Download the signed PDF with signature embedded
+// Cancel
+export const cancelSignature = async (req: Request, res: Response) => {
+    try {
+        const data = await SignatureService.cancel(String(req.params.id), req.tenant?.id!);
+        res.json({ success: true, data });
+    } catch (error: any) { res.status(400).json({ success: false, error: error.message }); }
+};
+
+// Download PDF (with embedded signatures)
 export const downloadSignedPdf = async (req: Request, res: Response) => {
     try {
-        const tenantId = req.tenant?.id!;
-        const pdfBuffer = await SignatureService.generateSignedPdf(String(req.params.id), tenantId);
+        const buffer = await SignatureService.getSignedPdf(String(req.params.id), req.tenant?.id!);
         res.setHeader('Content-Type', 'application/pdf');
-        res.setHeader('Content-Disposition', 'attachment; filename="document_signe.pdf"');
-        res.send(pdfBuffer);
-    } catch (err: any) {
-        const status = err.message.includes('introuvable') ? 404 : 500;
-        res.status(status).json({ success: false, error: err.message });
+        res.setHeader('Content-Disposition', `inline; filename="document_${req.params.id}.pdf"`);
+        res.send(buffer);
+    } catch (error: any) {
+        const status = error.message.includes('introuvable') ? 404 : 500;
+        res.status(status).json({ success: false, error: error.message });
     }
 };
 
-export const getSignatureStats = async (req: Request, res: Response) => {
+// Download raw PDF (unsigned, for preview)
+export const downloadRawPdf = async (req: Request, res: Response) => {
     try {
-        const tenantId = req.tenant?.id!;
-        const stats = await SignatureService.getStats(tenantId);
-        res.json({ success: true, data: stats });
-    } catch (err: any) {
-        res.status(500).json({ success: false, error: err.message });
-    }
+        const reqData = await SignatureService.getById(String(req.params.id), req.tenant?.id!);
+        if (!reqData) { res.status(404).json({ success: false, error: 'Demande introuvable' }); return; }
+        if (!reqData.pdfData) { res.status(404).json({ success: false, error: 'Aucun PDF disponible' }); return; }
+        const buffer = Buffer.from(reqData.pdfData, 'base64');
+        res.setHeader('Content-Type', 'application/pdf');
+        res.setHeader('Content-Disposition', `inline; filename="preview_${req.params.id}.pdf"`);
+        res.send(buffer);
+    } catch (error: any) { res.status(500).json({ success: false, error: error.message }); }
 };

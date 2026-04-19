@@ -1,41 +1,28 @@
 'use client';
 
 import * as React from 'react';
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import api, { API_BASE_URL } from '@/lib/api';
-import { toast } from 'sonner';
 import { useTranslations } from 'next-intl';
-import { useAuthStore } from '@/store/authStore';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import {
-    PenTool, Loader2, CheckCircle2, Clock, XCircle, AlertTriangle,
-    Eraser, Send, ArrowLeft, Ban, User, FileText, Calendar, Download, Eye
-} from 'lucide-react';
+import api, { API_BASE_URL } from '@/lib/api';
 import Cookies from 'js-cookie';
+import { useAuthStore } from '@/store/authStore';
+import { toast } from 'sonner';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
+import { ArrowLeft, FileText, PenTool, CheckCircle2, XCircle, Loader2, Download, Trash2 } from 'lucide-react';
 import Link from 'next/link';
 
-// ─── Types ──────────────────────────────────────────────
-interface SignatureRequest {
-    id: string;
-    title: string;
-    description?: string;
-    documentType: string;
-    status: 'PENDING' | 'SIGNED' | 'EXPIRED' | 'CANCELLED';
-    createdAt: string;
-    signedAt?: string;
-    expiresAt?: string;
-    signatureData?: string;
-    employee?: { id: string; firstName: string; lastName: string };
-    requestedBy?: { email: string };
-}
-
-const STATUS_CONFIG = {
-    PENDING: { color: 'bg-amber-100 text-amber-700 border-amber-200', icon: Clock },
-    SIGNED: { color: 'bg-emerald-100 text-emerald-700 border-emerald-200', icon: CheckCircle2 },
-    EXPIRED: { color: 'bg-red-100 text-red-600 border-red-200', icon: AlertTriangle },
-    CANCELLED: { color: 'bg-slate-100 text-slate-600 border-slate-200', icon: XCircle },
+const STATUS_COLOR: Record<string, string> = {
+    PENDING: 'bg-amber-100 text-amber-700',
+    AWAITING_ADMIN: 'bg-blue-100 text-blue-700',
+    AWAITING_VALIDATION: 'bg-purple-100 text-purple-700',
+    SIGNED: 'bg-emerald-100 text-emerald-700',
+    REJECTED: 'bg-red-100 text-red-700',
+    CANCELLED: 'bg-slate-100 text-slate-500',
 };
 
 export default function SignatureDetailPage() {
@@ -43,398 +30,331 @@ export default function SignatureDetailPage() {
     const tc = useTranslations('common');
     const params = useParams();
     const router = useRouter();
-    const id = params.id as string;
+    const { user } = useAuthStore();
+    const id = params?.id as string;
 
-    const [request, setRequest] = useState<SignatureRequest | null>(null);
+    const [req, setReq] = useState<any>(null);
     const [loading, setLoading] = useState(true);
+    const [showReject, setShowReject] = useState(false);
+    const [rejectReason, setRejectReason] = useState('');
     const [signing, setSigning] = useState(false);
-    const [cancelling, setCancelling] = useState(false);
-    const [showPdfPreview, setShowPdfPreview] = useState(false);
-    const [pdfUrl, setPdfUrl] = useState<string | null>(null);
 
-    // ─── Canvas state ───────────────────────────────────
-    const canvasRef = useRef<HTMLCanvasElement>(null);
+    // Canvas refs
+    const employeeCanvasRef = useRef<HTMLCanvasElement>(null);
+    const adminCanvasRef = useRef<HTMLCanvasElement>(null);
     const [isDrawing, setIsDrawing] = useState(false);
-    const [hasDrawn, setHasDrawn] = useState(false);
 
-    // ─── Fetch ──────────────────────────────────────────
-    const fetchRequest = useCallback(async () => {
-        try {
-            const res = await api.get(`/signatures/${id}`);
-            if (res.data.success) setRequest(res.data.data);
-        } catch {
-            toast.error(t('errorLoading'));
-        } finally {
-            setLoading(false);
-        }
-    }, [id]);
-
-    useEffect(() => {
-        fetchRequest();
-    }, [fetchRequest]);
-
-    // ─── PDF preview URL ─────────────────────────────────
-    const getPdfUrl = useCallback((endpoint: string) => {
-        const token = Cookies.get('accessToken');
-        const subdomain = useAuthStore.getState().user?.tenantSubdomain || 'demo';
-        return `${API_BASE_URL}/signatures/${id}/${endpoint}?token=${token}&tenant=${subdomain}`;
-    }, [id]);
-
-    const handlePreviewPdf = () => {
-        const url = getPdfUrl('pdf');
-        setPdfUrl(url);
-        setShowPdfPreview(true);
+    const fetchRequest = () => {
+        api.get(`/signatures/${id}`).then(res => setReq(res.data?.data)).catch(() => toast.error('Erreur')).finally(() => setLoading(false));
     };
+    useEffect(() => { fetchRequest(); }, [id]);
 
-    const handleDownloadSignedPdf = () => {
-        const url = getPdfUrl('signed-pdf');
-        window.open(url, '_blank');
-    };
-
-    // ─── Canvas setup ───────────────────────────────────
-    useEffect(() => {
-        const canvas = canvasRef.current;
+    // Canvas setup
+    const setupCanvas = (canvas: HTMLCanvasElement | null) => {
         if (!canvas) return;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
-
         const rect = canvas.getBoundingClientRect();
         canvas.width = rect.width * 2;
         canvas.height = rect.height * 2;
         ctx.scale(2, 2);
+        ctx.strokeStyle = '#1e293b';
+        ctx.lineWidth = 2;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-        ctx.strokeStyle = '#1e293b';
-        ctx.lineWidth = 2.5;
-    }, [request]);
-
-    // ─── Drawing handlers ───────────────────────────────
-    const getPos = (e: React.MouseEvent | React.TouchEvent) => {
-        const canvas = canvasRef.current;
-        if (!canvas) return { x: 0, y: 0 };
-        const rect = canvas.getBoundingClientRect();
-        if ('touches' in e) {
-            return { x: e.touches[0].clientX - rect.left, y: e.touches[0].clientY - rect.top };
-        }
-        return { x: e.clientX - rect.left, y: e.clientY - rect.top };
     };
 
-    const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
-        if ('touches' in e) e.preventDefault();
-        const ctx = canvasRef.current?.getContext('2d');
+    useEffect(() => {
+        setupCanvas(employeeCanvasRef.current);
+        setupCanvas(adminCanvasRef.current);
+    }, [req]);
+
+    const getPos = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+        const rect = canvas.getBoundingClientRect();
+        const touch = 'touches' in e ? e.touches[0] : e;
+        return { x: touch.clientX - rect.left, y: touch.clientY - rect.top };
+    };
+
+    const startDraw = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
+        const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        const pos = getPos(e);
+        setIsDrawing(true);
+        const pos = getPos(e, canvas);
         ctx.beginPath();
         ctx.moveTo(pos.x, pos.y);
-        setIsDrawing(true);
     };
 
-    const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    const draw = (e: React.MouseEvent | React.TouchEvent, canvas: HTMLCanvasElement) => {
         if (!isDrawing) return;
-        if ('touches' in e) e.preventDefault();
-        const ctx = canvasRef.current?.getContext('2d');
+        const ctx = canvas.getContext('2d');
         if (!ctx) return;
-        const pos = getPos(e);
+        const pos = getPos(e, canvas);
         ctx.lineTo(pos.x, pos.y);
         ctx.stroke();
-        setHasDrawn(true);
     };
 
-    const stopDrawing = () => setIsDrawing(false);
+    const stopDraw = () => setIsDrawing(false);
 
-    const clearCanvas = () => {
-        const canvas = canvasRef.current;
-        const ctx = canvas?.getContext('2d');
-        if (!canvas || !ctx) return;
-        const rect = canvas.getBoundingClientRect();
-        ctx.clearRect(0, 0, rect.width, rect.height);
-        setHasDrawn(false);
-    };
-
-    // ─── Sign handler ───────────────────────────────────
-    const handleSign = async () => {
-        if (!hasDrawn) { toast.error(t('signatureRequired')); return; }
-        const canvas = canvasRef.current;
+    const clearCanvas = (canvas: HTMLCanvasElement | null) => {
         if (!canvas) return;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    };
 
-        const signatureData = canvas.toDataURL('image/png');
+    const getCanvasData = (canvas: HTMLCanvasElement | null) => {
+        if (!canvas) return null;
+        return canvas.toDataURL('image/png');
+    };
+
+    // Admin sign (DUAL — both at once)
+    const handleAdminSignBoth = async () => {
+        const empSig = getCanvasData(employeeCanvasRef.current);
+        const admSig = getCanvasData(adminCanvasRef.current);
+        if (!admSig) { toast.error('Signature admin requise'); return; }
         setSigning(true);
         try {
-            await api.post(`/signatures/${id}/sign`, { signatureData });
-            toast.success(t('signatureSuccess'));
-            setShowPdfPreview(false);
+            await api.post(`/signatures/${id}/admin-sign`, { adminSignature: admSig, employeeSignature: empSig });
+            toast.success(t('signSuccess'));
             fetchRequest();
-        } catch (err: any) {
-            toast.error(err.response?.data?.error || tc('error'));
-        } finally {
-            setSigning(false);
-        }
+        } catch (err: any) { toast.error(err.response?.data?.error || 'Erreur'); }
+        finally { setSigning(false); }
     };
 
-    // ─── Cancel handler ─────────────────────────────────
-    const handleCancel = async () => {
-        setCancelling(true);
+    // Admin sign (after employee signed)
+    const handleAdminSign = async () => {
+        const admSig = getCanvasData(adminCanvasRef.current);
+        if (!admSig) { toast.error('Signature admin requise'); return; }
+        setSigning(true);
         try {
-            await api.patch(`/signatures/${id}/cancel`);
-            toast.success(t('requestCancelled'));
+            await api.post(`/signatures/${id}/admin-sign`, { adminSignature: admSig });
+            toast.success(t('signSuccess'));
             fetchRequest();
-        } catch (err: any) {
-            toast.error(err.response?.data?.error || tc('error'));
-        } finally {
-            setCancelling(false);
-        }
+        } catch (err: any) { toast.error(err.response?.data?.error || 'Erreur'); }
+        finally { setSigning(false); }
     };
 
-    // ─── Helpers ────────────────────────────────────────
-    const docTypeLabel = (type: string) => {
-        const map: Record<string, string> = {
-            CONTRACT: t('contract'), ATTESTATION: t('attestation'),
-            PAYSLIP: t('payslip'), OTHER: t('other'),
-        };
-        return map[type] || type;
+    // Admin validate + sign (employee request)
+    const handleValidate = async () => {
+        const admSig = getCanvasData(adminCanvasRef.current);
+        if (!admSig) { toast.error('Signature admin requise'); return; }
+        setSigning(true);
+        try {
+            await api.post(`/signatures/${id}/validate`, { adminSignature: admSig });
+            toast.success(t('validateSuccess'));
+            fetchRequest();
+        } catch (err: any) { toast.error(err.response?.data?.error || 'Erreur'); }
+        finally { setSigning(false); }
     };
 
-    const statusLabel = (status: string) => {
-        const map: Record<string, string> = {
-            PENDING: t('pending'), SIGNED: t('signed'),
-            EXPIRED: t('expired'), CANCELLED: t('cancelled'),
-        };
-        return map[status] || status;
+    const handleReject = async () => {
+        try {
+            await api.post(`/signatures/${id}/reject`, { reason: rejectReason });
+            toast.success(t('rejectSuccess'));
+            setShowReject(false);
+            fetchRequest();
+        } catch (err: any) { toast.error(err.response?.data?.error || 'Erreur'); }
     };
 
-    // ─── Render ─────────────────────────────────────────
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center min-h-[60vh]">
-                <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
-                <span className="ml-3 text-slate-500">{t('loading')}</span>
-            </div>
-        );
-    }
+    const handleCancel = async () => {
+        try {
+            await api.post(`/signatures/${id}/cancel`);
+            toast.success(t('cancelSuccess'));
+            fetchRequest();
+        } catch (err: any) { toast.error(err.response?.data?.error || 'Erreur'); }
+    };
 
-    if (!request) {
-        return (
-            <div className="flex flex-col items-center justify-center min-h-[60vh] text-slate-400 gap-4">
-                <PenTool className="h-12 w-12 text-slate-200" />
-                <p className="font-medium">{t('errorLoading')}</p>
-                <Link href="/dashboard/signatures">
-                    <Button variant="outline" className="gap-2">
-                        <ArrowLeft className="h-4 w-4" /> {tc('back')}
-                    </Button>
-                </Link>
-            </div>
-        );
-    }
+    const pdfUrl = `${API_BASE_URL}/signatures/${id}/pdf?tenant=${user?.tenantSubdomain || 'demo'}&token=${Cookies.get('accessToken') || ''}`;
+    const signedPdfUrl = `${API_BASE_URL}/signatures/${id}/signed-pdf?tenant=${user?.tenantSubdomain || 'demo'}&token=${Cookies.get('accessToken') || ''}`;
 
-    const cfg = STATUS_CONFIG[request.status];
-    const StatusIcon = cfg.icon;
+    if (loading) return <div className="flex justify-center py-24"><Loader2 className="h-8 w-8 animate-spin text-indigo-500" /></div>;
+    if (!req) return <p className="text-center py-12 text-slate-500">Demande introuvable</p>;
+
+    const canAdminSign = req.signatureMode === 'DUAL' && (req.status === 'AWAITING_ADMIN' || req.status === 'PENDING');
+    const canValidate = req.status === 'AWAITING_VALIDATION';
+    const canCancel = !['SIGNED', 'CANCELLED'].includes(req.status);
+    const isSigned = req.status === 'SIGNED';
 
     return (
         <div className="space-y-6 max-w-4xl mx-auto">
-            {/* Back + title */}
-            <div className="flex items-center gap-3">
-                <Link href="/dashboard/signatures">
-                    <Button variant="outline" size="sm" className="gap-2">
-                        <ArrowLeft className="h-4 w-4" /> {tc('back')}
-                    </Button>
-                </Link>
-                <div>
-                    <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-                        <PenTool className="h-5 w-5 text-blue-600" /> {t('detail')}
-                    </h1>
+            {/* Header */}
+            <div className="flex items-center gap-4">
+                <Link href="/dashboard/signatures"><Button variant="outline" size="icon" className="h-8 w-8"><ArrowLeft className="h-4 w-4" /></Button></Link>
+                <div className="flex-1">
+                    <h1 className="text-xl font-bold text-slate-900">{req.title}</h1>
+                    <p className="text-sm text-slate-500">{req.employee?.firstName} {req.employee?.lastName} · {t(`docTypes.${req.documentType}`)}</p>
                 </div>
+                <span className={`px-3 py-1 rounded-full text-xs font-bold ${STATUS_COLOR[req.status]}`}>{t(`statuses.${req.status}`)}</span>
             </div>
 
-            {/* Document info card */}
-            <Card className="border-slate-200/60 shadow-sm bg-white/90">
-                <CardHeader className="border-b border-slate-100 pb-4">
-                    <div className="flex items-start justify-between">
-                        <div>
-                            <CardTitle className="text-lg">{request.title}</CardTitle>
-                            {request.description && (
-                                <p className="text-sm text-slate-500 mt-1">{request.description}</p>
-                            )}
-                        </div>
-                        <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold border ${cfg.color}`}>
-                            <StatusIcon className="h-3.5 w-3.5" /> {statusLabel(request.status)}
-                        </span>
-                    </div>
-                </CardHeader>
-                <CardContent className="pt-4">
-                    <div className="grid grid-cols-2 gap-4">
-                        <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center">
-                                <User className="h-4 w-4 text-slate-500" />
-                            </div>
-                            <div>
-                                <p className="text-xs font-semibold text-slate-400 uppercase">{t('employee')}</p>
-                                <p className="text-sm font-medium text-slate-800">
-                                    {request.employee ? `${request.employee.firstName} ${request.employee.lastName}` : '\u2014'}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center">
-                                <FileText className="h-4 w-4 text-slate-500" />
-                            </div>
-                            <div>
-                                <p className="text-xs font-semibold text-slate-400 uppercase">{t('documentType')}</p>
-                                <p className="text-sm font-medium text-slate-800">{docTypeLabel(request.documentType)}</p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center">
-                                <Calendar className="h-4 w-4 text-slate-500" />
-                            </div>
-                            <div>
-                                <p className="text-xs font-semibold text-slate-400 uppercase">{t('requestedDate')}</p>
-                                <p className="text-sm font-medium text-slate-800">
-                                    {new Date(request.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex items-center gap-3">
-                            <div className="h-9 w-9 rounded-full bg-slate-100 flex items-center justify-center">
-                                <CheckCircle2 className="h-4 w-4 text-slate-500" />
-                            </div>
-                            <div>
-                                {request.signedAt ? (
-                                    <>
-                                        <p className="text-xs font-semibold text-slate-400 uppercase">{t('signedDate')}</p>
-                                        <p className="text-sm font-medium text-emerald-700">
-                                            {new Date(request.signedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                                        </p>
-                                    </>
-                                ) : request.expiresAt ? (
-                                    <>
-                                        <p className="text-xs font-semibold text-slate-400 uppercase">{t('expiresAt')}</p>
-                                        <p className="text-sm font-medium text-slate-800">
-                                            {new Date(request.expiresAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}
-                                        </p>
-                                    </>
-                                ) : (
-                                    <>
-                                        <p className="text-xs font-semibold text-slate-400 uppercase">{t('expiresAt')}</p>
-                                        <p className="text-sm text-slate-400">{'\u2014'}</p>
-                                    </>
-                                )}
-                            </div>
-                        </div>
-                    </div>
-
-                    {/* Document actions */}
-                    <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
-                        <Button
-                            variant="outline"
-                            onClick={handlePreviewPdf}
-                            className="gap-2"
-                        >
-                            <Eye className="h-4 w-4" /> {t('viewDocument')}
-                        </Button>
-                        {request.status === 'SIGNED' && (
-                            <Button
-                                onClick={handleDownloadSignedPdf}
-                                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
-                            >
-                                <Download className="h-4 w-4" /> {t('downloadSignedPdf')}
-                            </Button>
-                        )}
-                    </div>
+            {/* Info */}
+            <Card>
+                <CardContent className="p-5 grid sm:grid-cols-2 lg:grid-cols-4 gap-4 text-sm">
+                    <div><p className="text-xs text-slate-400">Mode</p><p className="font-semibold">{req.signatureMode === 'DUAL' ? t('modeDual') : req.signatureMode === 'ADMIN_ONLY' ? t('modeAdminOnly') : t('modeEmployeeOnly')}</p></div>
+                    <div><p className="text-xs text-slate-400">Initié par</p><p className="font-semibold">{req.initiatedBy === 'EMPLOYEE' ? 'Employé' : 'Admin'}</p></div>
+                    <div><p className="text-xs text-slate-400">{t('requestedOn')}</p><p className="font-semibold">{new Date(req.requestedAt).toLocaleDateString('fr-FR')}</p></div>
+                    {req.expiresAt && <div><p className="text-xs text-slate-400">{t('expiresAt')}</p><p className="font-semibold">{new Date(req.expiresAt).toLocaleDateString('fr-FR')}</p></div>}
                 </CardContent>
             </Card>
 
             {/* PDF Preview */}
-            {showPdfPreview && pdfUrl && (
-                <Card className="border-slate-200/60 shadow-sm">
-                    <CardHeader className="border-b border-slate-100 pb-3 flex flex-row items-center justify-between">
-                        <CardTitle className="text-base flex items-center gap-2">
-                            <FileText className="h-4 w-4 text-blue-600" /> {t('documentPreview')}
-                        </CardTitle>
-                        <Button variant="ghost" size="sm" onClick={() => setShowPdfPreview(false)}>
-                            <XCircle className="h-4 w-4" />
-                        </Button>
-                    </CardHeader>
-                    <CardContent className="p-0">
-                        <iframe
-                            src={pdfUrl}
-                            className="w-full border-0 rounded-b-lg"
-                            style={{ height: '600px' }}
-                            title={t('pdfDocument')}
-                        />
-                    </CardContent>
-                </Card>
-            )}
-
-            {/* Signature section — only for PENDING */}
-            {request.status === 'PENDING' && (
-                <Card className="border-blue-200 bg-blue-50/30 shadow-sm">
-                    <CardHeader className="border-b border-blue-100 pb-3">
-                        <CardTitle className="text-base text-blue-800 flex items-center gap-2">
-                            <PenTool className="h-4 w-4" /> {t('signDocument')}
-                        </CardTitle>
-                        <p className="text-sm text-blue-600 mt-0.5">{t('drawSignature')}</p>
-                    </CardHeader>
-                    <CardContent className="pt-4 space-y-4">
-                        <div className="bg-white rounded-xl border-2 border-dashed border-blue-200 overflow-hidden">
-                            <canvas
-                                ref={canvasRef}
-                                className="w-full cursor-crosshair touch-none"
-                                style={{ height: '200px' }}
-                                onMouseDown={startDrawing}
-                                onMouseMove={draw}
-                                onMouseUp={stopDrawing}
-                                onMouseLeave={stopDrawing}
-                                onTouchStart={startDrawing}
-                                onTouchMove={draw}
-                                onTouchEnd={stopDrawing}
-                            />
-                        </div>
-                        <div className="flex items-center justify-between">
-                            <Button type="button" variant="outline" onClick={clearCanvas} className="gap-2 border-slate-200">
-                                <Eraser className="h-4 w-4" /> {t('clearSignature')}
-                            </Button>
-                            <Button onClick={handleSign} disabled={signing || !hasDrawn} className="bg-emerald-600 hover:bg-emerald-700 gap-2">
-                                {signing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
-                                {t('signDocument')}
-                            </Button>
+            {req.pdfData && (
+                <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2 text-base"><FileText className="h-4 w-4" /> {t('viewPdf')}</CardTitle></CardHeader>
+                    <CardContent>
+                        <div className="flex gap-2">
+                            <Button variant="outline" onClick={() => window.open(pdfUrl, '_blank')} className="gap-1.5"><FileText className="h-4 w-4" /> {t('viewPdf')}</Button>
+                            {isSigned && <Button onClick={() => window.open(signedPdfUrl, '_blank')} className="gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white"><Download className="h-4 w-4" /> {t('downloadSigned')}</Button>}
                         </div>
                     </CardContent>
                 </Card>
             )}
 
-            {/* Signed signature preview + download */}
-            {request.status === 'SIGNED' && request.signatureData && (
-                <Card className="border-emerald-200 bg-emerald-50/30 shadow-sm">
-                    <CardHeader className="border-b border-emerald-100 pb-3">
-                        <CardTitle className="text-base text-emerald-800 flex items-center gap-2">
-                            <CheckCircle2 className="h-4 w-4" /> {t('signaturePreview')}
-                        </CardTitle>
-                    </CardHeader>
-                    <CardContent className="pt-4 space-y-4">
-                        <div className="bg-white rounded-xl border border-emerald-200 p-4 flex items-center justify-center">
-                            <img src={request.signatureData} alt="Signature" className="max-h-40 object-contain" />
+            {/* Signature Zones */}
+            {(canAdminSign || canValidate) && (
+                <Card>
+                    <CardHeader><CardTitle className="flex items-center gap-2 text-base"><PenTool className="h-4 w-4" /> {t('sign')}</CardTitle></CardHeader>
+                    <CardContent className="space-y-6">
+                        {/* DUAL: both signatures side by side */}
+                        {req.signatureMode === 'DUAL' && req.status === 'PENDING' && (
+                            <div className="grid sm:grid-cols-2 gap-6">
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2 block">{t('signEmployee')}</Label>
+                                    <canvas
+                                        ref={employeeCanvasRef}
+                                        className="w-full h-32 border-2 border-dashed border-slate-300 rounded-xl cursor-crosshair bg-white"
+                                        onMouseDown={e => startDraw(e, employeeCanvasRef.current!)}
+                                        onMouseMove={e => draw(e, employeeCanvasRef.current!)}
+                                        onMouseUp={stopDraw} onMouseLeave={stopDraw}
+                                        onTouchStart={e => startDraw(e, employeeCanvasRef.current!)}
+                                        onTouchMove={e => draw(e, employeeCanvasRef.current!)}
+                                        onTouchEnd={stopDraw}
+                                    />
+                                    <Button variant="ghost" size="sm" onClick={() => clearCanvas(employeeCanvasRef.current)} className="mt-1 text-xs">{t('clearSignature')}</Button>
+                                </div>
+                                <div>
+                                    <Label className="text-sm font-semibold mb-2 block">{t('signAdmin')}</Label>
+                                    <canvas
+                                        ref={adminCanvasRef}
+                                        className="w-full h-32 border-2 border-dashed border-indigo-300 rounded-xl cursor-crosshair bg-white"
+                                        onMouseDown={e => startDraw(e, adminCanvasRef.current!)}
+                                        onMouseMove={e => draw(e, adminCanvasRef.current!)}
+                                        onMouseUp={stopDraw} onMouseLeave={stopDraw}
+                                        onTouchStart={e => startDraw(e, adminCanvasRef.current!)}
+                                        onTouchMove={e => draw(e, adminCanvasRef.current!)}
+                                        onTouchEnd={stopDraw}
+                                    />
+                                    <Button variant="ghost" size="sm" onClick={() => clearCanvas(adminCanvasRef.current)} className="mt-1 text-xs">{t('clearSignature')}</Button>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* DUAL: admin signs after employee */}
+                        {req.signatureMode === 'DUAL' && req.status === 'AWAITING_ADMIN' && (
+                            <div>
+                                <div className="flex items-center gap-2 mb-3 p-3 bg-emerald-50 border border-emerald-200 rounded-lg">
+                                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                                    <span className="text-sm text-emerald-700">{t('signEmployee')} — {t('signedOn')} {new Date(req.employeeSignedAt).toLocaleDateString('fr-FR')}</span>
+                                </div>
+                                <Label className="text-sm font-semibold mb-2 block">{t('signAdmin')}</Label>
+                                <canvas
+                                    ref={adminCanvasRef}
+                                    className="w-full h-32 border-2 border-dashed border-indigo-300 rounded-xl cursor-crosshair bg-white"
+                                    onMouseDown={e => startDraw(e, adminCanvasRef.current!)}
+                                    onMouseMove={e => draw(e, adminCanvasRef.current!)}
+                                    onMouseUp={stopDraw} onMouseLeave={stopDraw}
+                                    onTouchStart={e => startDraw(e, adminCanvasRef.current!)}
+                                    onTouchMove={e => draw(e, adminCanvasRef.current!)}
+                                    onTouchEnd={stopDraw}
+                                />
+                                <Button variant="ghost" size="sm" onClick={() => clearCanvas(adminCanvasRef.current)} className="mt-1 text-xs">{t('clearSignature')}</Button>
+                            </div>
+                        )}
+
+                        {/* ADMIN_ONLY: validate employee request */}
+                        {canValidate && (
+                            <div>
+                                <Label className="text-sm font-semibold mb-2 block">{t('signAdmin')}</Label>
+                                <canvas
+                                    ref={adminCanvasRef}
+                                    className="w-full h-32 border-2 border-dashed border-indigo-300 rounded-xl cursor-crosshair bg-white"
+                                    onMouseDown={e => startDraw(e, adminCanvasRef.current!)}
+                                    onMouseMove={e => draw(e, adminCanvasRef.current!)}
+                                    onMouseUp={stopDraw} onMouseLeave={stopDraw}
+                                    onTouchStart={e => startDraw(e, adminCanvasRef.current!)}
+                                    onTouchMove={e => draw(e, adminCanvasRef.current!)}
+                                    onTouchEnd={stopDraw}
+                                />
+                                <Button variant="ghost" size="sm" onClick={() => clearCanvas(adminCanvasRef.current)} className="mt-1 text-xs">{t('clearSignature')}</Button>
+                            </div>
+                        )}
+
+                        {/* Action buttons */}
+                        <div className="flex gap-2 justify-end pt-2">
+                            {req.signatureMode === 'DUAL' && req.status === 'PENDING' && (
+                                <Button onClick={handleAdminSignBoth} disabled={signing} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5">
+                                    {signing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenTool className="h-4 w-4" />} {t('signBoth')}
+                                </Button>
+                            )}
+                            {req.signatureMode === 'DUAL' && req.status === 'AWAITING_ADMIN' && (
+                                <Button onClick={handleAdminSign} disabled={signing} className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5">
+                                    {signing ? <Loader2 className="h-4 w-4 animate-spin" /> : <PenTool className="h-4 w-4" />} {t('confirmSign')}
+                                </Button>
+                            )}
+                            {canValidate && (
+                                <>
+                                    <Button variant="outline" onClick={() => setShowReject(true)} className="gap-1.5 text-red-600 border-red-200 hover:bg-red-50">
+                                        <XCircle className="h-4 w-4" /> {t('reject')}
+                                    </Button>
+                                    <Button onClick={handleValidate} disabled={signing} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5">
+                                        {signing ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />} {t('validate')}
+                                    </Button>
+                                </>
+                            )}
                         </div>
                     </CardContent>
                 </Card>
             )}
 
-            {/* Admin actions */}
-            {request.status === 'PENDING' && (
-                <div className="flex justify-end gap-3">
-                    <Button
-                        variant="outline"
-                        onClick={handleCancel}
-                        disabled={cancelling}
-                        className="gap-2 border-red-200 text-red-600 hover:bg-red-50"
-                    >
-                        {cancelling ? <Loader2 className="h-4 w-4 animate-spin" /> : <Ban className="h-4 w-4" />}
-                        {t('cancel')}
+            {/* Signed status */}
+            {isSigned && (
+                <Card className="border-emerald-200 bg-emerald-50">
+                    <CardContent className="p-5 flex items-center gap-3">
+                        <CheckCircle2 className="h-6 w-6 text-emerald-600" />
+                        <div>
+                            <p className="font-bold text-emerald-800">Document signé</p>
+                            <p className="text-sm text-emerald-600">
+                                {req.employeeSignedAt && `Employé: ${new Date(req.employeeSignedAt).toLocaleDateString('fr-FR')}`}
+                                {req.adminSignedAt && ` · Admin: ${new Date(req.adminSignedAt).toLocaleDateString('fr-FR')}`}
+                            </p>
+                        </div>
+                    </CardContent>
+                </Card>
+            )}
+
+            {/* Cancel button */}
+            {canCancel && (
+                <div className="flex justify-end">
+                    <Button variant="outline" onClick={handleCancel} className="gap-1.5 text-slate-500 hover:text-red-600 hover:border-red-200">
+                        <Trash2 className="h-4 w-4" /> {t('cancel')}
                     </Button>
                 </div>
             )}
+
+            {/* Reject Dialog */}
+            <Dialog open={showReject} onOpenChange={setShowReject}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>{t('reject')}</DialogTitle>
+                        <DialogDescription>{t('rejectReason')}</DialogDescription>
+                    </DialogHeader>
+                    <Input value={rejectReason} onChange={e => setRejectReason(e.target.value)} placeholder="Motif..." />
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setShowReject(false)}>{tc('cancel')}</Button>
+                        <Button variant="destructive" onClick={handleReject}>{t('reject')}</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
