@@ -4,7 +4,9 @@ import {
     toggleTenantStatus,
     createTenant,
     deleteTenant,
-    updateTenantPlan
+    updateTenantPlan,
+    getTenantAdmins,
+    resetTenantUserPassword,
 } from '../controllers/tenant.controller';
 import { authenticateToken } from '../middleware/auth';
 import { requireRole } from '../middleware/rbac';
@@ -22,5 +24,11 @@ router.post('/', auditLog({ action: 'CREATE_TENANT', resource: 'Tenant' }), crea
 router.patch('/:id/status', auditLog({ action: 'TOGGLE_TENANT_STATUS', resource: 'Tenant' }), toggleTenantStatus);
 router.patch('/:id/plan', auditLog({ action: 'UPDATE_TENANT_PLAN', resource: 'Tenant' }), updateTenantPlan);
 router.delete('/:id', auditLog({ action: 'DELETE_TENANT', resource: 'Tenant' }), deleteTenant);
+
+// Admins du tenant + reset mot de passe
+router.get('/:id/admins', getTenantAdmins);
+router.post('/:id/users/:userId/reset-password',
+    auditLog({ action: 'RESET_TENANT_USER_PASSWORD', resource: 'User' }),
+    resetTenantUserPassword);
 
 export default router;

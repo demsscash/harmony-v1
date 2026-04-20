@@ -183,3 +183,58 @@ export const updateTenantPlan = async (req: Request, res: Response) => {
     }
 };
 
+// Lister les admins d'un tenant (Super Admin only)
+export const getTenantAdmins = async (req: Request, res: Response) => {
+    try {
+        const tenantId = req.params.id as string;
+        const admins = await prisma.user.findMany({
+            where: { tenantId, role: { in: ['ADMIN', 'HR'] } },
+            select: {
+                id: true,
+                email: true,
+                phone: true,
+                role: true,
+                isActive: true,
+                lastLogin: true,
+                employee: { select: { firstName: true, lastName: true } }
+            },
+            orderBy: [{ role: 'asc' }, { email: 'asc' }]
+        });
+        res.json({ success: true, data: admins });
+    } catch (error: any) {
+        console.error('GetTenantAdmins error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// Réinitialiser le mot de passe d'un user (Super Admin only)
+export const resetTenantUserPassword = async (req: Request, res: Response) => {
+    try {
+        const { id: tenantId, userId } = req.params as { id: string; userId: string };
+        const { newPassword } = req.body;
+        if (!newPassword || newPassword.length < 6) {
+            res.status(400).json({ success: false, error: 'Mot de passe trop court (min 6 caractères)' });
+            return;
+        }
+
+        // Vérifier que le user appartient bien au tenant
+        const user = await prisma.user.findFirst({ where: { id: userId, tenantId } });
+        if (!user) {
+            res.status(404).json({ success: false, error: 'Utilisateur introuvable dans cette instance' });
+            return;
+        }
+
+        const bcrypt = require('bcrypt');
+        const passwordHash = await bcrypt.hash(newPassword, 10);
+        await prisma.user.update({
+            where: { id: userId },
+            data: { passwordHash, refreshToken: null }, // invalider les sessions
+        });
+
+        res.json({ success: true, message: 'Mot de passe réinitialisé' });
+    } catch (error: any) {
+        console.error('ResetTenantUserPassword error:', error);
+        res.status(500).json({ success: false, error: error.message });
+    }
+};
+

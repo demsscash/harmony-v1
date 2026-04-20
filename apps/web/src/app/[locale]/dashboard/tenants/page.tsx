@@ -11,8 +11,12 @@ import {
     Power,
     Shield,
     Trash2,
-    Loader2
+    Loader2,
+    Key,
+    RotateCcw,
 } from 'lucide-react';
+import { toast } from 'sonner';
+import { Label } from '@/components/ui/label';
 import api from '@/lib/api';
 import { useTranslations } from 'next-intl';
 import {
@@ -49,6 +53,38 @@ export default function TenantsPage() {
     const [statusFilter, setStatusFilter] = React.useState(''); // '' | 'ACTIVE' | 'SUSPENDED'
 
     const [isCreateOpen, setIsCreateOpen] = React.useState(false);
+
+    // Admin management state
+    const [adminsDialog, setAdminsDialog] = React.useState<{ tenantId: string; tenantName: string } | null>(null);
+    const [admins, setAdmins] = React.useState<any[]>([]);
+    const [loadingAdmins, setLoadingAdmins] = React.useState(false);
+    const [resetting, setResetting] = React.useState<string | null>(null);
+    const [newPasswords, setNewPasswords] = React.useState<Record<string, string>>({});
+
+    const openAdminsDialog = async (tenant: Tenant) => {
+        setAdminsDialog({ tenantId: tenant.id, tenantName: tenant.name });
+        setLoadingAdmins(true);
+        try {
+            const res = await api.get(`/tenants/${tenant.id}/admins`);
+            setAdmins(res.data?.data || []);
+        } catch { toast.error('Erreur de chargement des admins'); }
+        setLoadingAdmins(false);
+    };
+
+    const handleResetPassword = async (userId: string) => {
+        const pwd = newPasswords[userId];
+        if (!pwd || pwd.length < 6) { toast.error('Mot de passe : 6 caractères minimum'); return; }
+        if (!adminsDialog) return;
+        setResetting(userId);
+        try {
+            await api.post(`/tenants/${adminsDialog.tenantId}/users/${userId}/reset-password`, { newPassword: pwd });
+            toast.success('Mot de passe réinitialisé');
+            setNewPasswords({ ...newPasswords, [userId]: '' });
+        } catch (err: any) {
+            toast.error(err.response?.data?.error || 'Erreur');
+        }
+        setResetting(null);
+    };
     const [createLoading, setCreateLoading] = React.useState(false);
     const [formData, setFormData] = React.useState({
         name: '',
@@ -220,6 +256,14 @@ export default function TenantsPage() {
             headerClassName: 'text-right',
             render: (tenant) => (
                 <div className="flex items-center justify-end gap-2">
+                    <Button
+                        onClick={(e) => { e.stopPropagation(); openAdminsDialog(tenant); }}
+                        variant="ghost" size="icon"
+                        className="h-8 w-8 text-amber-600 hover:text-amber-700 hover:bg-amber-50"
+                        title="Gérer les admins"
+                    >
+                        <Key className="h-4 w-4" />
+                    </Button>
                     <Button variant="ghost" size="icon" className="h-8 w-8 text-blue-600 hover:text-blue-700 hover:bg-blue-50" title={t('impersonate')}>
                         <Shield className="h-4 w-4" />
                     </Button>
@@ -382,6 +426,72 @@ export default function TenantsPage() {
                 }
                 rowClassName="group"
             />
+
+            {/* Admins management dialog */}
+            <Dialog open={!!adminsDialog} onOpenChange={(open) => { if (!open) { setAdminsDialog(null); setAdmins([]); setNewPasswords({}); } }}>
+                <DialogContent className="sm:max-w-[600px]">
+                    <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                            <Key className="h-5 w-5 text-amber-600" />
+                            Comptes admin — {adminsDialog?.tenantName}
+                        </DialogTitle>
+                        <DialogDescription>
+                            Réinitialisez le mot de passe des administrateurs de cette instance
+                        </DialogDescription>
+                    </DialogHeader>
+                    {loadingAdmins ? (
+                        <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-amber-500" /></div>
+                    ) : admins.length === 0 ? (
+                        <p className="text-center py-8 text-slate-400 text-sm">Aucun compte admin/HR pour cette instance</p>
+                    ) : (
+                        <div className="space-y-3">
+                            {admins.map(admin => (
+                                <div key={admin.id} className="p-3 bg-slate-50 rounded-xl border border-slate-100 space-y-2">
+                                    <div className="flex items-center justify-between">
+                                        <div>
+                                            <p className="font-semibold text-slate-800 text-sm">
+                                                {admin.employee?.firstName ? `${admin.employee.firstName} ${admin.employee.lastName}` : admin.email}
+                                            </p>
+                                            <p className="text-xs text-slate-500">{admin.email}</p>
+                                        </div>
+                                        <div className="flex items-center gap-2">
+                                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${admin.role === 'ADMIN' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                                                {admin.role}
+                                            </span>
+                                            {admin.isActive ? (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700">Actif</span>
+                                            ) : (
+                                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-200 text-slate-500">Inactif</span>
+                                            )}
+                                        </div>
+                                    </div>
+                                    <div className="flex gap-2">
+                                        <Input
+                                            type="text"
+                                            placeholder="Nouveau mot de passe (min 6)"
+                                            value={newPasswords[admin.id] || ''}
+                                            onChange={e => setNewPasswords({ ...newPasswords, [admin.id]: e.target.value })}
+                                            className="h-8 text-sm"
+                                        />
+                                        <Button
+                                            size="sm"
+                                            onClick={() => handleResetPassword(admin.id)}
+                                            disabled={resetting === admin.id || !newPasswords[admin.id] || newPasswords[admin.id].length < 6}
+                                            className="bg-amber-600 hover:bg-amber-700 text-white gap-1 h-8"
+                                        >
+                                            {resetting === admin.id ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+                                            Reset
+                                        </Button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setAdminsDialog(null)}>Fermer</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
         </div>
     );
 }
