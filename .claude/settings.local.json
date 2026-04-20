@@ -28,7 +28,8 @@
       "Bash(pnpm --filter web build)",
       "Bash(file /Users/demss/Desktop/harmony/apps/web/src/app/[locale]/dashboard/settings/page.tsx)",
       "Bash(rm -f \"/Users/demss/Desktop/harmony/apps/web/src/app/[locale]/employee/signatures/page.tsx\")",
-      "Bash(rm -rf \"/Users/demss/Desktop/harmony/apps/web/src/app/[locale]/employee/signatures/[id]\")"
+      "Bash(rm -rf \"/Users/demss/Desktop/harmony/apps/web/src/app/[locale]/employee/signatures/[id]\")",
+      "Bash(openssl rand *)"
     ]
   }
 }

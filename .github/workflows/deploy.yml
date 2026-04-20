@@ -3,47 +3,40 @@ name: Deploy Harmony ERP
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 jobs:
   deploy:
-    name: Build & Deploy to VPS
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 22
-
-      - name: Install pnpm
-        run: npm install -g pnpm
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
-
-      - name: Type-check API
-        run: cd apps/api && npx tsc --noEmit
-
-      - name: Type-check Web
-        run: cd apps/web && npx tsc --noEmit
-
-      - name: Build all
-        run: pnpm build
-
-      - name: Deploy to VPS via SSH
+      - name: Deploy to VPS
         uses: appleboy/ssh-action@v1
         with:
           host: ${{ secrets.VPS_HOST }}
           username: ${{ secrets.VPS_USER }}
           key: ${{ secrets.VPS_SSH_KEY }}
           script: |
+            set -e
             cd /home/harmony/harmony
+
+            # Pull latest code
             git pull origin main
-            pnpm install --frozen-lockfile
-            cd apps/api && npx prisma db push --accept-data-loss && cd ..
-            pnpm build
-            pm2 restart all
+
+            # Write production env file
+            cat > .env.production << EOF
+            DB_PASSWORD=${{ secrets.DB_PASSWORD }}
+            JWT_SECRET=${{ secrets.JWT_SECRET }}
+            JWT_REFRESH_SECRET=${{ secrets.JWT_REFRESH_SECRET }}
+            PUBLIC_URL=${{ secrets.PUBLIC_URL }}
+            EOF
+
+            # Build and start containers
+            docker compose --env-file .env.production up -d --build
+
+            # Wait for containers to be healthy
+            sleep 10
+
+            # Show status
+            docker compose ps
+
             echo "Deployed at $(date)"
