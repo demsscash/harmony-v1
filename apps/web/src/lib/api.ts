@@ -2,11 +2,17 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import { useAuthStore } from '@/store/authStore';
 
-// Use the same hostname as the page to keep cookies same-site (avoid SameSite=Strict/Lax cross-site issues in dev)
+// Use the same origin as the page (nginx proxies /api to backend in prod, localhost:3001 in dev)
 function getApiBaseUrl(): string {
     if (process.env.NEXT_PUBLIC_API_URL) return process.env.NEXT_PUBLIC_API_URL;
     if (typeof window !== 'undefined') {
-        return `${window.location.protocol}//${window.location.hostname}:3001/api`;
+        const host = window.location.hostname;
+        // Dev: direct to API port
+        if (host === 'localhost' || host === '127.0.0.1') {
+            return `${window.location.protocol}//${host}:3001/api`;
+        }
+        // Prod: same origin, nginx proxies /api
+        return `${window.location.origin}/api`;
     }
     return 'http://localhost:3001/api';
 }
