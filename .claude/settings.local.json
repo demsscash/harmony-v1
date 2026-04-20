@@ -29,7 +29,9 @@
       "Bash(file /Users/demss/Desktop/harmony/apps/web/src/app/[locale]/dashboard/settings/page.tsx)",
       "Bash(rm -f \"/Users/demss/Desktop/harmony/apps/web/src/app/[locale]/employee/signatures/page.tsx\")",
       "Bash(rm -rf \"/Users/demss/Desktop/harmony/apps/web/src/app/[locale]/employee/signatures/[id]\")",
-      "Bash(openssl rand *)"
+      "Bash(openssl rand *)",
+      "Bash(PGPASSWORD=postgres pg_dump -h localhost -p 5433 -U postgres -d harmony --no-owner --no-acl -Fc -f harmony_dump.pgc)",
+      "Bash(PGPASSWORD=postgres /Applications/Postgres.app/Contents/Versions/17/bin/pg_dump -h localhost -p 5433 -U postgres -d harmony --no-owner --no-acl --clean --if-exists -f /Users/demss/Desktop/harmony/harmony_dump.sql)"
     ]
   }
 }

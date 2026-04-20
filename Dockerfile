@@ -36,7 +36,7 @@ COPY --from=builder /app/apps/api ./apps/api
 
 WORKDIR /app/apps/api
 EXPOSE 3001
-CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/index.js"]
+CMD ["sh", "-c", "npx prisma db push --accept-data-loss && node dist/src/index.js"]
 
 # ── Stage 3: Web image ────────────────────────
 FROM node:22-alpine AS web
