@@ -26,10 +26,11 @@ export const login = async (req: Request, res: Response) => {
 
         const result = await AuthService.login(identifier, password, tenantId);
 
+        const isHttps = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
         res.cookie('refreshToken', result.refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            secure: isHttps,
+            sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000 // 30 days
         });
 
@@ -69,10 +70,11 @@ export const superAdminLogin = async (req: Request, res: Response) => {
 
         const result = await AuthService.superAdminLogin(identifier, password);
 
+        const isHttpsSA = req.protocol === 'https' || req.get('x-forwarded-proto') === 'https';
         res.cookie('refreshToken', result.refreshToken, {
             httpOnly: true,
-            secure: process.env.NODE_ENV === 'production',
-            sameSite: process.env.NODE_ENV === 'production' ? 'none' : 'lax',
+            secure: isHttpsSA,
+            sameSite: 'lax',
             maxAge: 30 * 24 * 60 * 60 * 1000,
         });
 

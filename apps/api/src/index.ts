@@ -54,6 +54,9 @@ if (missingOptional.length > 0) {
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Trust reverse proxy (Nginx) for correct req.protocol detection
+app.set('trust proxy', 1);
+
 // Middlewares
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
