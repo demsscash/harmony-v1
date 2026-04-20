@@ -19,8 +19,8 @@ COPY apps/web/ ./apps/web/
 # Generate Prisma client
 RUN cd apps/api && npx prisma generate
 
-# Build shared package (schemas) — compile .ts → .js en place
-RUN cd packages/shared && npx tsc
+# Build shared package (compile .ts → .js puis copie à côté des .ts pour que Node résout naturellement)
+RUN cd packages/shared && npx tsc && cp -r dist/schemas/* schemas/
 
 # Build API (TypeScript → dist/)
 RUN cd apps/api && npx tsc
